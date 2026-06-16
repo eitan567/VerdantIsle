@@ -689,15 +689,27 @@
       }
       function fbm(x, y, oct) { let s = 0, a = 0.5, f = 1, m = 0; for (let i = 0; i < oct; i++) { s += a * noise2(x * f, y * f); m += a; a *= 0.5; f *= 2; } return s / m; }
 
+      /* inland lakes — carved basins, each gets its own separate water surface (set up later) */
+      const LAKES = [
+        { x: -64, z: 44, r: 30, depth: 7.5 },
+        { x: 78, z: -52, r: 26, depth: 7.0 },
+        { x: 26, z: 96, r: 24, depth: 6.5 }
+      ];
       /* island-shaped height: falls off toward edges so it reads as an isle */
       function heightAt(x, z) {
         const nx = x / WORLD, nz = z / WORLD;
         const d = Math.sqrt(nx * nx + nz * nz) * 2;            // 0 center -> ~1 edge
         const island = Math.max(0, 1 - Math.pow(d, 2.2));  // radial mask
-        let h = fbm(x * 0.012 + 50, z * 0.012 + 50, 5);          // rolling hills
+        let h = fbm(x * 0.012 + 50, z * 0.012 + 50, 5);          // big rolling hills
         h = Math.pow(h, 1.5);
+        let hills = fbm(x * 0.035 + 12, z * 0.035 + 12, 4);      // small hills — RAISE only (0..1), so they never dig below the sea
         let mtn = fbm(x * 0.05, z * 0.05, 3);                 // fine ridges
-        let elev = (h * 22 + mtn * 4) * island - (1 - island) * 10;
+        let elev = (h * 22 + hills * 12 + mtn * 4) * island - (1 - island) * 10;  // coast left exactly as the original
+        // carve ONLY the designated inland lakes; each basin has its own floor so the ocean never shows inside it
+        for (let i = 0; i < LAKES.length; i++) {
+          const L = LAKES[i], dd = Math.sqrt((x - L.x) * (x - L.x) + (z - L.z) * (z - L.z));
+          if (dd < L.r) { const f = 1 - dd / L.r; elev -= f * f * L.depth; if (elev < WATER + 0.6) elev = WATER + 0.6; }
+        }
         return elev;
       }
 
@@ -927,6 +939,21 @@
       waterGeo.setAttribute('color', new THREE.Float32BufferAttribute(wcolArr, 3));
       waterGeo.setAttribute('aDepth', new THREE.Float32BufferAttribute(wdep, 1));
 
+      /* ---- separate inland LAKES: each its own water disc, sitting above sea level in its basin ---- */
+      const lakeMat = new THREE.MeshStandardMaterial({ color: 0x2f8fb0, transparent: true, opacity: 0.85, roughness: 0.22, metalness: 0.0, side: THREE.DoubleSide });
+      const lakeMeshes = [];
+      for (let i = 0; i < LAKES.length; i++) {
+        const L = LAKES[i];
+        // surrounding rim level (sample 4 points just outside the basin, where the carve is ~0)
+        let rim = 0; const rs = [[L.r, 0], [-L.r, 0], [0, L.r], [0, -L.r]];
+        for (const o of rs) rim += heightAt(L.x + o[0], L.z + o[1]);
+        rim /= 4;
+        const wy = Math.max(WATER + 1.5, rim - L.depth * 0.45);   // lake surface: in the basin, above the sea
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(L.r * 0.84, 36), lakeMat);
+        disc.rotation.x = -Math.PI / 2; disc.position.set(L.x, wy, L.z); disc.renderOrder = 1;
+        scene.add(disc); lakeMeshes.push({ mesh: disc, wy });
+      }
+
       /* ============================================================
          INSTANCED VEGETATION + ROCKS
          ============================================================ */
@@ -1109,7 +1136,7 @@
         }
         if (logs.length) {
           const lg = new THREE.CylinderGeometry(0.34, 0.34, 2.6, 9); lg.rotateZ(Math.PI / 2); const lm = new THREE.InstancedMesh(lg, woodMat, logs.length); lm.castShadow = true;
-          logs.forEach((d, i) => { _q.setFromAxisAngle(_up, d.r); _p.set(d.x, d.h + 0.34, d.z); _s.set(d.s, d.s, d.s); _m.compose(_p, _q, _s); lm.setMatrixAt(i, _m); }); scene.add(lm);
+          logs.forEach((d, i) => { _q.setFromAxisAngle(_up, d.r); _p.set(d.x, d.h + 0.18, d.z); _s.set(d.s, d.s, d.s); _m.compose(_p, _q, _s); lm.setMatrixAt(i, _m); }); scene.add(lm);
         }
       })();
 
@@ -1195,7 +1222,7 @@
         function makeHouse(x, z, h, rot) {
           const g = new THREE.Group(); g.position.set(x, h, z); g.rotation.y = rot; scene.add(g);
           const W = 6, D = 5, wallTop = 3.6, hh = 2.0;
-          box(W, 1.0, D, stoneMat, 0, 0.5, 0, g);                 // stone base
+          box(W * 1.05, 7.0, D * 1.05, stoneMat, 0, -2.5, 0, g);  // deep stone foundation (fills slope gaps, top at +1)
           box(W * 0.94, 2.6, D * 0.94, wallMat, 0, 2.3, 0, g);        // walls
           gableEnd(W * 0.94, hh, gableMat, D * 0.47, g);           // front gable
           gableEnd(W * 0.94, hh, gableMat, -D * 0.47, g);          // back gable
@@ -1212,12 +1239,21 @@
           return g;
         }
 
-        function fence(x, z, len, dir) { // dir 0 -> along +x, 1 -> along +z
-          const g = new THREE.Group(); const by = heightAt(x, z); g.position.set(x, by, z); scene.add(g);
-          const n = Math.max(2, Math.floor(len / 0.7));
-          for (let i = 0; i < n; i++) { const ox = dir ? 0 : i * 0.7, oz = dir ? i * 0.7 : 0; const gy = heightAt(x + ox, z + oz) - by; box(0.16, 1.3, 0.12, woodMat, ox, 0.65 + gy, oz, g); }
-          box(dir ? 0.09 : len, 0.12, dir ? len : 0.09, woodMat, dir ? 0 : len / 2, 1.05, dir ? len / 2 : 0, g);
-          box(dir ? 0.09 : len, 0.12, dir ? len : 0.09, woodMat, dir ? 0 : len / 2, 0.55, dir ? len / 2 : 0, g);
+        function fence(x, z, len, dir) { // dir 0 -> along +x, 1 -> along +z ; posts + rails follow the ground
+          const g = new THREE.Group(); scene.add(g);
+          const n = Math.max(2, Math.round(len / 1.1)), step = len / n;
+          for (let i = 0; i <= n; i++) {
+            const px = dir ? x : x + i * step, pz = dir ? z + i * step : z, py = heightAt(px, pz);
+            box(0.17, 1.7, 0.17, woodMat, px, py + 0.55, pz, g);   // post (sunk a little, so it always meets the ground)
+            if (i < n) {
+              const px2 = dir ? x : x + (i + 1) * step, pz2 = dir ? z + (i + 1) * step : z, py2 = heightAt(px2, pz2);
+              const mx = (px + px2) / 2, mz = (pz + pz2) / 2, my = (py + py2) / 2, dy = py2 - py, sl = Math.hypot(step, dy);
+              for (const ry of [1.05, 0.55]) {                      // two rails, each tilted to match the slope
+                const r = box(dir ? 0.08 : sl, 0.12, dir ? sl : 0.08, woodMat, mx, my + ry, mz, g);
+                if (dir) r.rotation.x = -Math.atan2(dy, step); else r.rotation.z = Math.atan2(dy, step);
+              }
+            }
+          }
           return g;
         }
 
@@ -1558,7 +1594,7 @@
         if (type === 'tree') { const tk = kind || TREE_KINDS[treeKindIdx].id; g.add(makeTreeModel(tk)); g.userData.kind = tk; }
         else if (type === 'rock') { const s = 0.7 + Math.random() * 1.7; bm(Math.random() < 0.5 ? bG.rock : bG.rock2, bM.rock, g, 0, s * 0.3, 0, s, s * (0.6 + Math.random() * 0.5), s); }
         else if (type === 'bush') { const s = 0.8 + Math.random() * 0.6; bm(bG.ball, bM.bush, g, 0, 0.7 * s, 0, s * 0.55, s * 0.5, s * 0.55); bm(bG.ball, bM.bush, g, 0.5 * s, 0.6 * s, 0.2 * s, s * 0.38, s * 0.36, s * 0.38); bm(bG.ball, bM.bush, g, -0.45 * s, 0.62 * s, -0.2 * s, s * 0.34, s * 0.32, s * 0.34); }
-        else if (type === 'house') { bm(new THREE.BoxGeometry(6, 1, 5), bM.stone, g, 0, 0.5, 0); bm(new THREE.BoxGeometry(5.6, 2.6, 4.6), bM.wall, g, 0, 2.3, 0); const r1 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, -1.5, 4.35, 0); r1.rotation.z = 0.72; const r2 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, 1.5, 4.35, 0); r2.rotation.z = -0.72; }
+        else if (type === 'house') { bm(new THREE.BoxGeometry(6.3, 7, 5.3), bM.stone, g, 0, -2.5, 0); bm(new THREE.BoxGeometry(5.6, 2.6, 4.6), bM.wall, g, 0, 2.3, 0); const r1 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, -1.5, 4.35, 0); r1.rotation.z = 0.72; const r2 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, 1.5, 4.35, 0); r2.rotation.z = -0.72; }
         g.userData.type = type; placed.push(g); return g;
       }
       function eraseNear(x, z) { let bi = -1, bd = 8; for (let i = 0; i < placed.length; i++) { const p = placed[i], d = Math.hypot(p.position.x - x, p.position.z - z); if (d < bd) { bd = d; bi = i; } } if (bi >= 0) { scene.remove(placed[bi]); placed.splice(bi, 1); } }
