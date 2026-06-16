@@ -1232,10 +1232,10 @@
           box(1.2, 1.9, 0.2, doorMat, 0, 1.45, D / 2 + 0.02, g);      // door
           // ADAPTIVE staircase: each step drops to the ACTUAL ground beneath it (no floating)
           {
-            const fz = D / 2, topY = 1.0, sd = 0.5;
-            const lg = (zz) => heightAt(x + Math.sin(rot) * zz, z + Math.cos(rot) * zz) - h; // local ground height at front-distance zz
-            const gEnd = lg(fz + 3.0), drop = Math.max(0.6, topY - gEnd);
-            const nS = Math.max(2, Math.ceil(drop / 0.32)), sh = drop / nS;
+            const fz = D / 2, topY = 1.0, sd = 0.45, sh = 0.38;
+            const lg = (zz) => heightAt(x + Math.sin(rot) * zz, z + Math.cos(rot) * zz) - h; // local ground at front-distance zz
+            let nS = 2;                                  // pick step count so the stair line MEETS the ground (low last step)
+            for (let i = 1; i < 40; i++) { nS = i + 1; if (topY - (i + 1) * sh <= lg(fz + 0.05 + i * sd) + 0.05) break; }
             let lastZ = fz, lastG = lg(fz);
             for (let i = 0; i < nS; i++) {
               const sz = fz + 0.05 + i * sd, treadY = topY - (i + 1) * sh, gwi = lg(sz);
@@ -1615,8 +1615,8 @@
         else if (type === 'bush') { const s = 0.8 + Math.random() * 0.6; bm(bG.ball, bM.bush, g, 0, 0.7 * s, 0, s * 0.55, s * 0.5, s * 0.55); bm(bG.ball, bM.bush, g, 0.5 * s, 0.6 * s, 0.2 * s, s * 0.38, s * 0.36, s * 0.38); bm(bG.ball, bM.bush, g, -0.45 * s, 0.62 * s, -0.2 * s, s * 0.34, s * 0.32, s * 0.34); }
         else if (type === 'house') { bm(new THREE.BoxGeometry(6.3, 7, 5.3), bM.stone, g, 0, -2.5, 0); bm(new THREE.BoxGeometry(5.6, 2.6, 4.6), bM.wall, g, 0, 2.3, 0); const r1 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, -1.5, 4.35, 0); r1.rotation.z = 0.72; const r2 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, 1.5, 4.35, 0); r2.rotation.z = -0.72;
           bm(new THREE.BoxGeometry(1.1, 1.8, 0.2), bM.barkDark, g, 0, 1.4, 2.32);                       // door
-          { const fz = 2.3, topY = 1.0, sd = 0.5; const lg = (zz) => heightAt(x + Math.sin(rot) * zz, z + Math.cos(rot) * zz) - h;
-            const gEnd = lg(fz + 3.0), drop = Math.max(0.6, topY - gEnd), nS = Math.max(2, Math.ceil(drop / 0.32)), sh = drop / nS;
+          { const fz = 2.3, topY = 1.0, sd = 0.45, sh = 0.38; const lg = (zz) => heightAt(x + Math.sin(rot) * zz, z + Math.cos(rot) * zz) - h;
+            let nS = 2; for (let i = 1; i < 40; i++) { nS = i + 1; if (topY - (i + 1) * sh <= lg(fz + 0.05 + i * sd) + 0.05) break; }
             let lastZ = fz, lastG = lg(fz);
             for (let i = 0; i < nS; i++) { const sz = fz + 0.05 + i * sd, treadY = topY - (i + 1) * sh, gwi = lg(sz), bottom = Math.min(gwi - 0.35, treadY - sh), hgt = treadY - bottom; bm(new THREE.BoxGeometry(1.7, hgt, sd + 0.1), bM.stone, g, 0, (treadY + bottom) / 2, sz); lastZ = sz; lastG = gwi; }
             for (const side of [-1, 1]) { bm(new THREE.BoxGeometry(0.12, 0.9, 0.12), bM.trunk, g, side * 0.85, topY + 0.45, fz + 0.1); bm(new THREE.BoxGeometry(0.12, 0.9, 0.12), bM.trunk, g, side * 0.85, lastG + 0.45, lastZ); const z0 = fz + 0.1, y0 = topY + 0.9, z1 = lastZ, y1 = lastG + 0.9, dz = z1 - z0, dy = y1 - y0, len = Math.hypot(dz, dy); const rr = bm(new THREE.BoxGeometry(0.1, 0.1, len), bM.trunk, g, side * 0.85, (y0 + y1) / 2, (z0 + z1) / 2); rr.rotation.x = Math.atan2(-dy, dz); } }
