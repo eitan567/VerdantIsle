@@ -1281,11 +1281,14 @@
         function makeHouse(x, z, h, rot) {
           flattenPad(x, z, 5.5, h);   // level the ground under the house first
           const g = new THREE.Group(); g.position.set(x, h, z); g.rotation.y = rot; scene.add(g);
-          const W = 6, D = 5, wallTop = 3.6, hh = 2.0, th = 0.22, wallY = 2.3, wallH = 2.6, doorHalf = 0.85;
+          // sized for the tall player (eye height 3.0): roomy footprint, ~3.8 door, ~5 ceiling
+          const W = 9, D = 8, th = 0.24, doorHalf = 1.15;
+          const FLOOR = 1.0, wallH = 5.0, wallY = FLOOR + wallH / 2, wallTop = FLOOR + wallH; // walls 1.0 -> 6.0
+          const hh = 3.0, doorH = 3.8;                            // gable rise; clear door opening height
           const iw = W * 0.94, id = D * 0.94, hx = iw / 2, hd = id / 2;
           const wm = wallMat.clone(), rm = roofMat.clone(), gm = gableMat.clone(); // per-house mats so only THIS house fades
           box(W * 1.05, 7.0, D * 1.05, stoneMat, 0, -2.5, 0, g);  // deep stone foundation (top at +1)
-          box(iw, 0.2, id, fFloor, 0, 1.0, 0, g);                 // interior floor
+          box(iw, 0.2, id, fFloor, 0, FLOOR, 0, g);               // interior floor (top ~1.1)
           // hollow walls so the player can actually be inside
           box(iw, wallH, th, wm, 0, wallY, -hd, g);               // back
           box(th, wallH, id, wm, -hx, wallY, 0, g);               // left
@@ -1293,29 +1296,37 @@
           const segW = hx - doorHalf;
           box(segW, wallH, th, wm, (hx + doorHalf) / 2, wallY, hd, g);   // front (right of door)
           box(segW, wallH, th, wm, -(hx + doorHalf) / 2, wallY, hd, g);  // front (left of door)
-          box(doorHalf * 2, 0.85, th, wm, 0, wallY + wallH / 2 - 0.42, hd, g); // lintel over door
-          gableEnd(iw, hh, gm, hd, g); gableEnd(iw, hh, gm, -hd, g);
-          const ang = Math.atan2(hh, W / 2), slab = Math.hypot(W / 2, hh) + 0.5;
-          const rl = box(slab, 0.32, D * 1.22, rm, -W / 4, wallTop + hh / 2, 0, g); rl.rotation.z = ang;
-          const rr = box(slab, 0.32, D * 1.22, rm, W / 4, wallTop + hh / 2, 0, g); rr.rotation.z = -ang;
-          // door on a hinge (opens when you approach)
-          const doorPivot = new THREE.Group(); doorPivot.position.set(-doorHalf, 1.45, hd); g.add(doorPivot);
-          box(doorHalf * 1.85, 1.9, 0.1, doorMat, doorHalf * 0.92, 0, 0, doorPivot);
-          // windows
-          box(1.0, 1.0, 0.08, glassMat, -1.55, 2.5, hd + 0.02, g);
-          box(1.0, 1.0, 0.08, glassMat, 1.55, 2.5, hd + 0.02, g);
-          box(0.08, 1.0, 1.0, glassMat, hx + 0.02, 2.5, -0.8, g);
-          box(0.08, 1.0, 1.0, glassMat, -hx - 0.02, 2.5, 0.8, g);
+          const lintelH = wallTop - (FLOOR + doorH);
+          box(doorHalf * 2, lintelH, th, wm, 0, FLOOR + doorH + lintelH / 2, hd, g); // lintel above the door
+          const geF = gableEnd(iw, hh, gm, hd, g); geF.position.y = wallTop;   // gables fill wall-top -> roof peak
+          const geB = gableEnd(iw, hh, gm, -hd, g); geB.position.y = wallTop;
+          const ang = Math.atan2(hh, W / 2), slab = Math.hypot(W / 2, hh) + 0.6;
+          const rl = box(slab, 0.34, D * 1.24, rm, -W / 4, wallTop + hh / 2, 0, g); rl.rotation.z = ang;
+          const rr = box(slab, 0.34, D * 1.24, rm, W / 4, wallTop + hh / 2, 0, g); rr.rotation.z = -ang;
+          // door on a hinge (opens when you approach) — fills the opening
+          const doorPivot = new THREE.Group(); doorPivot.position.set(-doorHalf, FLOOR, hd); g.add(doorPivot);
+          box(doorHalf * 1.96, doorH - 0.05, 0.14, doorMat, doorHalf, (doorH - 0.05) / 2, 0, doorPivot); // panel fills the whole opening
+          box(0.14, 0.5, 0.14, woodMat, doorHalf * 1.75, doorH * 0.5, 0.06, doorPivot); // handle
+          // door frame trim
+          box(0.16, doorH + 0.1, 0.18, woodMat, -doorHalf, FLOOR + doorH / 2, hd, g);
+          box(0.16, doorH + 0.1, 0.18, woodMat, doorHalf, FLOOR + doorH / 2, hd, g);
+          box(doorHalf * 2 + 0.3, 0.2, 0.2, woodMat, 0, FLOOR + doorH, hd, g);
+          // windows (large, at the tall player's eye level)
+          box(1.6, 1.7, 0.08, glassMat, (hx + doorHalf) / 2, 3.7, hd + 0.02, g);
+          box(1.6, 1.7, 0.08, glassMat, -(hx + doorHalf) / 2, 3.7, hd + 0.02, g);
+          box(0.08, 1.7, 1.8, glassMat, hx + 0.02, 3.7, -1.4, g);
+          box(0.08, 1.7, 1.8, glassMat, -hx - 0.02, 3.7, 1.4, g);
+          box(1.8, 1.7, 0.08, glassMat, 1.6, 3.7, -hd - 0.02, g);
           // ---- furnished interior ----
-          box(1.5, 0.5, 2.0, fWood, -hx + 1.0, 1.35, -hd + 1.3, g); box(1.4, 0.35, 1.9, fWhite, -hx + 1.0, 1.72, -hd + 1.3, g); // bed
-          box(1.2, 0.18, 1.2, fWood, hx - 1.5, 1.95, hd - 1.7, g); box(0.12, 0.95, 0.12, fWood, hx - 1.5, 1.45, hd - 1.7, g);    // table
-          box(0.5, 0.5, 0.5, fCloth, hx - 0.7, 1.25, hd - 1.7, g); box(0.5, 0.5, 0.5, fCloth, hx - 2.3, 1.25, hd - 1.7, g);     // chairs
-          box(1.9, 1.0, 0.7, fWhite, hx - 1.1, 1.5, -hd + 0.55, g); box(1.9, 0.1, 0.7, fWood, hx - 1.1, 2.05, -hd + 0.55, g);   // kitchen counter
-          box(2.4, 0.04, 2.0, fRug, -0.2, 1.05, 0.4, g);                                                                        // rug
-          const lamp = new THREE.PointLight(0xffd9a0, 0.0, 10); lamp.position.set(0, 3.2, 0); g.add(lamp);                      // warm interior light
-          // chimney + smoke
-          box(0.7, 1.7, 0.7, wallMat2, W * 0.2, 5.1, -0.7, g);
-          for (let i = 0; i < 4; i++) { const p = box(0.42, 0.42, 0.42, smokeMat, W * 0.2, 6.2 + i * 0.7, -0.7, g); p.rotation.set(0.6, 0.6, 0); smoke.push({ mesh: p, baseY: 6.2 + i * 0.7, phase: i * 1.3 }); }
+          box(2.4, 0.7, 3.2, fWood, -hx + 1.7, 1.45, -hd + 2.3, g); box(2.2, 0.5, 3.0, fWhite, -hx + 1.7, 2.0, -hd + 2.3, g); box(0.9, 0.4, 1.9, fCloth, -hx + 1.7, 2.3, -hd + 1.0, g); // bed + pillow
+          box(2.0, 0.2, 2.0, fWood, hx - 2.5, 2.3, hd - 2.9, g); for (const lx of [-0.8, 0.8]) for (const lz of [-0.8, 0.8]) box(0.18, 1.2, 0.18, fWood, hx - 2.5 + lx, 1.7, hd - 2.9 + lz, g); // dining table + legs
+          box(0.8, 0.9, 0.8, fCloth, hx - 1.2, 1.55, hd - 2.9, g); box(0.8, 0.9, 0.8, fCloth, hx - 3.8, 1.55, hd - 2.9, g);   // chairs
+          box(3.2, 1.5, 1.0, fWhite, hx - 1.9, 1.85, -hd + 1.0, g); box(3.2, 0.16, 1.0, fWood, hx - 1.9, 2.68, -hd + 1.0, g); // kitchen counter
+          box(3.8, 0.05, 3.2, fRug, -0.4, 1.13, 0.6, g);                                                                       // rug
+          const lamp = new THREE.PointLight(0xffd9a0, 0.0, 14); lamp.position.set(0, 5.4, 0); g.add(lamp);                     // warm interior light
+          // chimney + smoke (on the new, taller roof)
+          box(0.85, 2.2, 0.85, wallMat2, W * 0.22, 7.7, -0.9, g);
+          for (let i = 0; i < 4; i++) { const p = box(0.46, 0.46, 0.46, smokeMat, W * 0.22, 9.0 + i * 0.8, -0.9, g); p.rotation.set(0.6, 0.6, 0); smoke.push({ mesh: p, baseY: 9.0 + i * 0.8, phase: i * 1.3 }); }
           // ADAPTIVE staircase (each step reaches the real ground; low last step)
           {
             const fz = D / 2, topY = 1.0, sd = 0.45, sh = 0.38;
