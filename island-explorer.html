@@ -695,6 +695,7 @@
         { x: 78, z: -52, r: 26, depth: 7.0 },
         { x: 26, z: 96, r: 24, depth: 6.5 }
       ];
+      const PADS = []; // flat building pads {x,z,r,y} — heightAt levels the ground here so structures sit flush
       /* island-shaped height: falls off toward edges so it reads as an isle */
       function heightAt(x, z) {
         const nx = x / WORLD, nz = z / WORLD;
@@ -709,6 +710,11 @@
         for (let i = 0; i < LAKES.length; i++) {
           const L = LAKES[i], dd = Math.sqrt((x - L.x) * (x - L.x) + (z - L.z) * (z - L.z));
           if (dd < L.r) { const f = 1 - dd / L.r; elev -= f * f * L.depth; if (elev < WATER + 0.6) elev = WATER + 0.6; }
+        }
+        // flatten building pads (level the ground toward the pad height, soft edges)
+        for (let i = 0; i < PADS.length; i++) {
+          const P = PADS[i], dd = Math.sqrt((x - P.x) * (x - P.x) + (z - P.z) * (z - P.z));
+          if (dd < P.r) { const t = Math.min(1, Math.max(0, (P.r - dd) / 1.6)); elev = elev * (1 - t) + P.y * t; } // flat inside, 1.6u soft rim
         }
         return elev;
       }
@@ -894,6 +900,18 @@
         terrainMesh.receiveShadow = true;
         scene.add(terrainMesh);
       })();
+
+      // Level a flat building pad: registers it in heightAt (so collision matches) AND patches the terrain mesh.
+      function flattenPad(cx, cz, r, y) {
+        PADS.push({ x: cx, z: cz, r: r, y: y });
+        const pos = terrainMesh.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), z = pos.getZ(i);
+          if ((x - cx) * (x - cx) + (z - cz) * (z - cz) < r * r) pos.setY(i, heightAt(x, z));
+        }
+        pos.needsUpdate = true;
+        terrainMesh.geometry.computeVertexNormals();
+      }
 
       /* ============================================================
          WATER
@@ -1220,6 +1238,7 @@
         function gableEnd(w, hh, mat, z, parent) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute([-w / 2, 0, 0, w / 2, 0, 0, 0, hh, 0], 3)); geo.setIndex([0, 1, 2]); geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.position.z = z; m.castShadow = true; parent.add(m); return m; }
 
         function makeHouse(x, z, h, rot) {
+          flattenPad(x, z, 5.5, h);   // level the ground under the house first (flat footprint + soft rim)
           const g = new THREE.Group(); g.position.set(x, h, z); g.rotation.y = rot; scene.add(g);
           const W = 6, D = 5, wallTop = 3.6, hh = 2.0;
           box(W * 1.05, 7.0, D * 1.05, stoneMat, 0, -2.5, 0, g);  // deep stone foundation (fills slope gaps, top at +1)
@@ -1613,7 +1632,7 @@
         if (type === 'tree') { const tk = kind || TREE_KINDS[treeKindIdx].id; g.add(makeTreeModel(tk)); g.userData.kind = tk; }
         else if (type === 'rock') { const s = 0.7 + Math.random() * 1.7; bm(Math.random() < 0.5 ? bG.rock : bG.rock2, bM.rock, g, 0, s * 0.3, 0, s, s * (0.6 + Math.random() * 0.5), s); }
         else if (type === 'bush') { const s = 0.8 + Math.random() * 0.6; bm(bG.ball, bM.bush, g, 0, 0.7 * s, 0, s * 0.55, s * 0.5, s * 0.55); bm(bG.ball, bM.bush, g, 0.5 * s, 0.6 * s, 0.2 * s, s * 0.38, s * 0.36, s * 0.38); bm(bG.ball, bM.bush, g, -0.45 * s, 0.62 * s, -0.2 * s, s * 0.34, s * 0.32, s * 0.34); }
-        else if (type === 'house') { bm(new THREE.BoxGeometry(6.3, 7, 5.3), bM.stone, g, 0, -2.5, 0); bm(new THREE.BoxGeometry(5.6, 2.6, 4.6), bM.wall, g, 0, 2.3, 0); const r1 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, -1.5, 4.35, 0); r1.rotation.z = 0.72; const r2 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, 1.5, 4.35, 0); r2.rotation.z = -0.72;
+        else if (type === 'house') { flattenPad(x, z, 5.5, h); bm(new THREE.BoxGeometry(6.3, 7, 5.3), bM.stone, g, 0, -2.5, 0); bm(new THREE.BoxGeometry(5.6, 2.6, 4.6), bM.wall, g, 0, 2.3, 0); const r1 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, -1.5, 4.35, 0); r1.rotation.z = 0.72; const r2 = bm(new THREE.BoxGeometry(3.9, 0.3, 6), bM.roof, g, 1.5, 4.35, 0); r2.rotation.z = -0.72;
           bm(new THREE.BoxGeometry(1.1, 1.8, 0.2), bM.barkDark, g, 0, 1.4, 2.32);                       // door
           { const fz = 2.3, topY = 1.0, sd = 0.45, sh = 0.38; const lg = (zz) => heightAt(x + Math.sin(rot) * zz, z + Math.cos(rot) * zz) - h;
             let nS = 2; for (let i = 1; i < 40; i++) { nS = i + 1; if (topY - (i + 1) * sh <= lg(fz + 0.05 + i * sd) + 0.42) break; }
