@@ -34,6 +34,7 @@
       inset: 0;
       pointer-events: none;
       color: #fff;
+      display: none;
     }
 
     #crosshair {
@@ -885,10 +886,12 @@
       inset: 0;
       display: flex;
       align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at 50% 30%, #16314a, #070d18 70%);
+      justify-content: flex-start;
+      padding-left: 8%;
+      background: radial-gradient(circle at 60% 40%, rgba(22, 49, 74, 0.1), rgba(7, 13, 24, 0.65) 80%);
       z-index: 20;
       transition: opacity .5s;
+      pointer-events: auto;
     }
 
     #overlay.hide {
@@ -896,51 +899,241 @@
       pointer-events: none;
     }
 
-    .card {
-      text-align: center;
-      max-width: 520px;
-      padding: 40px;
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;600&display=swap');
+
+    .menu-card {
+      background: url('./menu_bg.png') no-repeat center center;
+      background-size: 100% 100%;
+      width: 480px;
+      height: 640px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      font-family: 'Outfit', sans-serif;
+      z-index: 21;
+      padding-top: 240px;
+      padding-left: 62px;
+      padding-right: 62px;
+      box-sizing: border-box;
     }
 
-    .card h1 {
-      font-size: 46px;
-      letter-spacing: 1px;
-      background: linear-gradient(90deg, #8be9c9, #ffd66b);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      margin-bottom: 8px;
+    .hidden-group {
+      display: none !important;
     }
 
-    .card p {
-      color: #c8d4e0;
-      margin-bottom: 26px;
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .menu-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .menu-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(127, 231, 196, 0.15);
+      border-radius: 12px;
+      padding: 14px 20px;
+      color: #bfe9d6;
+      font-family: 'Outfit', sans-serif;
       font-size: 15px;
-      line-height: 1.6;
-    }
-
-    #play {
-      pointer-events: auto;
-      cursor: pointer;
-      border: none;
-      padding: 14px 42px;
-      font-size: 17px;
       font-weight: 600;
-      border-radius: 30px;
-      color: #08121e;
-      background: linear-gradient(90deg, #8be9c9, #ffd66b);
-      box-shadow: 0 8px 30px rgba(139, 233, 201, .35);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+      overflow: hidden;
+      outline: none;
     }
 
-    #play:hover {
-      filter: brightness(1.08);
-      transform: translateY(-1px);
+    .menu-btn::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(127, 231, 196, 0.1), transparent);
+      transition: width 0.3s;
     }
 
-    .keys {
-      margin-top: 24px;
+    .menu-btn:hover:not(.locked) {
+      border-color: rgba(127, 231, 196, 0.5);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+      transform: translateX(4px);
+    }
+    
+    .menu-btn:hover:not(.locked)::before {
+      width: 100%;
+    }
+
+    /* Main Play Button */
+    .menu-btn.main-btn {
+      background: linear-gradient(90deg, rgba(61, 133, 98, 0.7), rgba(29, 64, 47, 0.7));
+      border: 2px solid #55c08d;
+      color: #ffffff;
+      font-size: 18px;
+      padding: 16px 20px;
+      box-shadow: 0 0 20px rgba(85, 192, 141, 0.2);
+    }
+
+    .menu-btn.main-btn:hover {
+      box-shadow: 0 0 25px rgba(85, 192, 141, 0.45);
+      border-color: #7effb4;
+      transform: translateX(4px) scale(1.02);
+    }
+
+    .menu-btn.locked {
+      opacity: 0.45;
+      cursor: not-allowed;
+      border-color: rgba(255, 255, 255, 0.05);
       color: #8fa3b8;
+    }
+
+    .menu-btn.danger-btn {
+      background: linear-gradient(90deg, rgba(133, 61, 61, 0.75), rgba(64, 29, 29, 0.75));
+      border: 2px solid #c05555;
+      color: #ffbfa8;
+    }
+
+    .menu-btn.danger-btn:hover {
+      box-shadow: 0 0 20px rgba(192, 85, 85, 0.45);
+      border-color: #ff7e7e;
+      transform: translateX(4px) scale(1.02);
+    }
+
+    .btn-icon {
+      font-size: 16px;
+    }
+
+    .loading-status {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #7fe7c4;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    /* Bottom Info Bar */
+    .menu-bottom-bar {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(8, 16, 28, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 30px;
+      padding: 10px 24px;
+      font-family: 'Outfit', sans-serif;
       font-size: 13px;
+      color: #dfeaf3;
+      pointer-events: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .key-tag {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: monospace;
+      font-weight: 700;
+      color: #7fe7c4;
+    }
+
+    .mouse-icon {
+      font-size: 14px;
+    }
+
+    .key-label {
+      color: #aab8c6;
+    }
+
+    .sep-dot {
+      color: rgba(255, 255, 255, 0.2);
+      margin: 0 4px;
+    }
+
+    /* Help Modal Overlay */
+    .help-modal-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4, 10, 16, 0.85);
+      z-index: 30;
+      transition: opacity 0.3s;
+    }
+
+    .help-modal-overlay.hidden-modal {
+      display: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .help-card {
+      background: linear-gradient(135deg, rgba(8, 26, 24, 0.98), rgba(4, 12, 20, 0.99));
+      border: 2px solid #3d6a50;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+      border-radius: 20px;
+      width: 500px;
+      padding: 40px;
+      font-family: 'Outfit', sans-serif;
+      color: #dfede5;
+      text-align: center;
+    }
+
+    .help-card h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 28px;
+      color: #7fe7c4;
+      margin-bottom: 24px;
+    }
+
+    .help-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .help-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .help-item .key-tag {
+      font-size: 11px;
+    }
+
+    .help-item .key-label {
+      font-size: 14px;
+      color: #dfede5;
+    }
+
+    .help-hint {
+      font-size: 13px;
+      color: #8fa3b8;
+      line-height: 1.5;
     }
 
     #loading {
@@ -1010,8 +1203,9 @@
         <button id="aiSend">Send</button>
       </div>
     </div>
+  </div>
 
-    <div id="settingsModal" class="hidden">
+  <div id="settingsModal" class="hidden">
       <div class="modalCard">
         <div class="modalHead"><span>⚙ Settings</span><button id="settingsClose">✕</button></div>
         <div id="sliders">
@@ -1065,16 +1259,112 @@
         </div>
       </div>
     </div>
-  </div>
 
   <div id="overlay">
-    <div class="card">
-      <h1>Verdant Isle</h1>
-      <p>A lush open-world island rendered entirely in your browser. Explore the hills, wander the forest, cross the
-        shallows and gather the glowing crystals scattered across the land.</p>
-      <button id="play">Click to Explore</button>
-      <div id="loading"></div>
-      <div class="keys">First-person · WASD + Mouse · built with Three.js</div>
+    <div class="menu-card">
+      <div class="menu-buttons">
+        <!-- Startup Buttons -->
+        <div id="startupButtons" class="btn-group">
+          <button id="play" class="menu-btn main-btn">
+            <span class="btn-icon">🍃</span>
+            <span class="btn-text">Single Player</span>
+          </button>
+          <button id="btnMultiplayer" class="menu-btn locked">
+            <span class="btn-icon">🔒</span>
+            <span class="btn-text">Multiplayer</span>
+          </button>
+        </div>
+
+        <!-- Pause / Active Game Buttons -->
+        <div id="pausedButtons" class="btn-group hidden-group">
+          <button id="btnContinue" class="menu-btn main-btn">
+            <span class="btn-icon">▶</span>
+            <span class="btn-text">Continue</span>
+          </button>
+          <button id="btnEndGame" class="menu-btn danger-btn">
+            <span class="btn-icon">🚪</span>
+            <span class="btn-text">End Current Game</span>
+          </button>
+        </div>
+
+        <button id="btnSettings" class="menu-btn">
+          <span class="btn-icon">⚙</span>
+          <span class="btn-text">Settings</span>
+        </button>
+        <button id="btnHelp" class="menu-btn">
+          <span class="btn-icon">❓</span>
+          <span class="btn-text">Help & Controls</span>
+        </button>
+        <button id="btnExit" class="menu-btn">
+          <span class="btn-icon">🚪</span>
+          <span class="btn-text">Exit</span>
+        </button>
+      </div>
+      
+      <div id="loading" class="loading-status">World ready — explore the island.</div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="help-modal-overlay hidden-modal">
+      <div class="help-card">
+        <h2>📜 Exploration Controls</h2>
+        <div class="help-grid">
+          <div class="help-item">
+            <span class="key-tag">W</span><span class="key-tag">A</span><span class="key-tag">S</span><span class="key-tag">D</span>
+            <span class="key-label">Move explorer character</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">Shift</span>
+            <span class="key-label">Sprint speed</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">Space</span>
+            <span class="key-label">Jump / Swim up in water</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">Left Click</span>
+            <span class="key-label">Swing torch / Attack slimes</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">E</span>
+            <span class="key-label">Open treasure chests / Interact</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">I</span>
+            <span class="key-label">Toggle Inventory bag panel</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">G</span>
+            <span class="key-label">Toggle God / Build mode</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">T</span>
+            <span class="key-label">Toggle First / Third Person view</span>
+          </div>
+        </div>
+        <p class="help-hint">Explore the island, gather all crystals, and defeat roaming slimes!</p>
+        <button id="helpCloseBtn" class="menu-btn" style="margin-top:20px; justify-content:center; width:100%;">Back to Menu</button>
+      </div>
+    </div>
+
+    <div class="menu-bottom-bar">
+      <span class="key-tag">W</span>
+      <span class="key-tag">A</span>
+      <span class="key-tag">S</span>
+      <span class="key-tag">D</span>
+      <span class="key-label">Move</span>
+      <span class="sep-dot">|</span>
+      <span class="mouse-icon">🖱</span>
+      <span class="key-label">Attack</span>
+      <span class="sep-dot">|</span>
+      <span class="key-tag">E</span>
+      <span class="key-label">Open</span>
+      <span class="sep-dot">|</span>
+      <span class="key-tag">G</span>
+      <span class="key-label">Build</span>
+      <span class="sep-dot">|</span>
+      <span class="key-tag">T</span>
+      <span class="key-label">View</span>
     </div>
   </div>
 
@@ -1880,6 +2170,7 @@
       let view = 'first';   // 'first' = FPS, 'third' = third-person (toggle with T while exploring)
       let paused = false;   // true while a blocking menu (Main menu / Settings / Inventory) is open -> freeze the world
       let started = false;  // true once the player has entered the world at least once
+      let inMainMenu = true;
       const _PMIDS = ['pauseMenu', 'settingsModal', 'inv'];
       function anyOverlayOpen() { return _PMIDS.some(id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); }); }
       function syncPause() { paused = anyOverlayOpen(); if (paused && document.exitPointerLock) document.exitPointerLock(); }
@@ -2192,9 +2483,131 @@
       function setVolume(v) { _volume = v; if (_master) _master.gain.setTargetAtTime(v, _actx.currentTime, 0.05); }
       addEventListener('keydown', e => { if (e.code === 'KeyM') setMusic(!musicOn); });
 
-      document.getElementById('play').addEventListener('click', () => { startMusic(); canvas.requestPointerLock(); });
-      // click the scene to (re)grab the mouse; releasing with Esc keeps the world visible so you can tune the sliders live
-      canvas.addEventListener('click', () => { if (paused) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { canvas.requestPointerLock(); } else { attack(); } });
+      document.getElementById('play').addEventListener('click', () => {
+        startMusic();
+        if (inMainMenu) {
+          inMainMenu = false;
+          pitch = 0;
+          yaw = 0;
+          player.rotation.set(0, 0, 0);
+          camera.rotation.set(0, 0, 0);
+          // show HUD
+          document.getElementById('hud').style.display = 'block';
+          // show enemies
+          enemies.forEach(e => e.visible = true);
+        }
+        canvas.requestPointerLock();
+      });
+
+      // Multiplayer (locked)
+      document.getElementById('btnMultiplayer').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toast('🔒 Multiplayer mode is coming soon!');
+      });
+
+      // Settings
+      document.getElementById('btnSettings').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openSettingsPanel();
+      });
+
+      // Help and controls modal toggling
+      const helpModal = document.getElementById('helpModal');
+      document.getElementById('btnHelp').addEventListener('click', (e) => {
+        e.stopPropagation();
+        helpModal.classList.remove('hidden-modal');
+      });
+      document.getElementById('helpCloseBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        helpModal.classList.add('hidden-modal');
+      });
+
+      // Exit game
+      document.getElementById('btnExit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toast('🚪 To exit, please close this browser tab.');
+        setTimeout(() => {
+          try { window.close(); } catch(err) {}
+        }, 1000);
+      });
+      // Continue Game
+      document.getElementById('btnContinue').addEventListener('click', () => {
+        canvas.requestPointerLock();
+      });
+
+      // End Current Game
+      document.getElementById('btnEndGame').addEventListener('click', (e) => {
+        e.stopPropagation();
+        inMainMenu = true;
+        paused = false;
+        pitch = 0;
+        yaw = 0;
+        player.rotation.set(0, 0, 0);
+        camera.rotation.set(0, 0, 0);
+
+        // Reset stats
+        score = 0;
+        kills = 0;
+        gold = 0;
+        keysHeld = 0;
+        playerHP = 100;
+
+        document.getElementById('got').textContent = '0';
+        const s = document.getElementById('score');
+        s.innerHTML = 'Crystals<br><span class="big"><span id="got">0</span>/<span id="total">' + crystals.length + '</span></span>';
+        updateTreasureHUD();
+        document.getElementById('hpNum').textContent = '100';
+        document.getElementById('kills').textContent = '0';
+
+        // Reset player spawn position
+        player.position.set(0, heightAt(0, 0) + EYE, 30);
+        vel.set(0, 0, 0);
+        vy = 0;
+        air = 1;
+
+        // Reset inventory
+        for (const k in inventory) delete inventory[k];
+        equippedWeapon = null;
+        playerDmg = 1;
+        const eqW = document.getElementById('eqW');
+        if (eqW) eqW.textContent = 'Fists';
+
+        // Reset crystals
+        crystals.forEach(c => {
+          c.got = false;
+          c.mesh.visible = true;
+        });
+
+        // Reset keys
+        keysArr.forEach(k => {
+          k.got = false;
+          k.mesh.visible = true;
+        });
+
+        // Reset chests
+        chests.forEach(c => {
+          c.opened = false;
+          c.openAmt = 0;
+          c.lid.rotation.x = 0;
+        });
+
+        // Hide HUD and slimes
+        document.getElementById('hud').style.display = 'none';
+        enemies.forEach(e => e.visible = false);
+
+        // Reset button views
+        document.getElementById('startupButtons').classList.remove('hidden-group');
+        document.getElementById('pausedButtons').classList.add('hidden-group');
+
+        // Reset overlays
+        _hideOverlays();
+        overlay.classList.remove('hide');
+        overlay.style.display = 'flex';
+      });
+
+      // click the scene to (re)grab the mouse
+      canvas.addEventListener('click', () => { if (paused || inMainMenu) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { canvas.requestPointerLock(); } else { attack(); } });
+
       document.addEventListener('pointerlockchange', () => {
         locked = document.pointerLockElement === canvas;
         if (locked) {
@@ -2203,6 +2616,18 @@
             overlay.style.display = 'none';
             overlay.removeEventListener('transitionend', handler);
           });
+          if (!inMainMenu) {
+            paused = false;
+          }
+        } else {
+          if (!inMainMenu) {
+            paused = true;
+            document.getElementById('startupButtons').classList.add('hidden-group');
+            document.getElementById('pausedButtons').classList.remove('hidden-group');
+            _hideOverlays();
+            overlay.classList.remove('hide');
+            overlay.style.display = 'flex';
+          }
         }
       });
 
@@ -2720,6 +3145,47 @@
         const dt = Math.min(clock.getDelta(), 0.05);
         const t = clock.elapsedTime;
 
+        if (inMainMenu) {
+          // Slowly orbit the camera around the island
+          const orbitRadius = 130;
+          const orbitSpeed = 0.045; // radians per second
+          const orbitAngle = t * orbitSpeed;
+          const camX = Math.sin(orbitAngle) * orbitRadius;
+          const camZ = Math.cos(orbitAngle) * orbitRadius;
+          const camY = Math.max(32, heightAt(camX, camZ) + 36);
+          camera.position.set(camX, camY, camZ);
+          camera.lookAt(0, 4, 0);
+
+          // Animate background elements
+          waterFoamU.uTime.value = t;
+          TEX.waterN.offset.x = t * 0.035; TEX.waterN.offset.y = t * 0.022;
+          for (let i = 0; i < wN; i++) {
+            const x = wbx[i], z = wbz[i];
+            const a = x * 0.06 + t * 1.15, b = z * 0.05 - t * 0.95, c = (x + z) * 0.11 + t * 1.9;
+            wpos.setY(i, 0.5 * Math.sin(a) + 0.42 * Math.sin(b) + 0.16 * Math.sin(c));
+            const da = 0.5 * 0.06 * Math.cos(a), db = 0.42 * 0.05 * Math.cos(b), dc = 0.16 * 0.11 * Math.cos(c);
+            const nx = -(da + dc), nz = -(db + dc), inv = 1 / Math.sqrt(nx * nx + 1 + nz * nz);
+            wnor.setXYZ(i, nx * inv, inv, nz * inv);
+          }
+          wpos.needsUpdate = true; wnor.needsUpdate = true;
+          
+          windUniforms.uTime.value = t;
+          windUniforms.uWind.value = 0.16 + 0.14 * Math.sin(t * 0.3) + 0.07 * Math.sin(t * 0.13 + 1.0);
+          const windSpd = 1.0 + windUniforms.uWind.value * 4;
+          for (let i = 0; i < clouds.length; i++) { const c = clouds[i]; c.grp.position.x += c.spd * windSpd * dt; if (c.grp.position.x > WORLD * 0.62) c.grp.position.x = -WORLD * 0.62; }
+          for (let i = 0; i < smoke.length; i++) { const sm = smoke[i]; const up = ((t * 0.7 + sm.phase) % 2.6); sm.mesh.position.y = sm.baseY + up; const k = 1 - up / 2.6; sm.mesh.scale.setScalar(0.45 + k * 0.85); }
+          for (let i = 0; i < motes.N; i++) { let y = motes.pos[i * 3 + 1] + motes.spd[i] * dt; if (y > 40) y = 5; motes.pos[i * 3 + 1] = y; motes.pos[i * 3] += Math.sin(t * 0.4 + i) * 0.006; }
+          motes.pts.geometry.attributes.position.needsUpdate = true;
+
+          updateWildlife(dt, t);
+
+          sun.position.set(80, 150, 50);
+          sun.target.position.set(0, 0, 0);
+
+          renderer.render(scene, camera);
+          return;
+        }
+
         if (paused) { renderer.render(scene, mode === 'god' ? godCam : camera); return; }   // menu open: freeze the world, keep showing it
 
         // god / builder camera takes over when active
@@ -2768,10 +3234,10 @@
         if (third) {   // orbit camera behind/above the visible character
           const tp = Math.max(-0.6, Math.min(1.0, pitch)), dist = 6.4, ty = 2.6;
           camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
-          camera.rotation.x = tp;
+          camera.rotation.set(tp, 0, 0);
         } else {
           camera.position.set(Math.cos(bob * 0.5) * 0.04 * moveAmt, EYE + Math.sin(bob) * 0.07 * moveAmt, 0);
-          camera.rotation.x = pitch;
+          camera.rotation.set(pitch, 0, 0);
         }
 
         // visible body follows player, yawed, with walking gait
@@ -2965,6 +3431,13 @@
 
       // place player on a nice spot
       player.position.set(0, heightAt(0, 0) + EYE, 30);
+
+      // hide slimes and player body initially in main menu
+      enemies.forEach(e => e.visible = false);
+      body.visible = false;
+      head.visible = false;
+      vm.visible = false;
+
       document.getElementById('loading').textContent = 'World ready — ' + crystals.length + ' crystals to find.';
       renderQuests();
       animate();
