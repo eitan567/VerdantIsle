@@ -172,6 +172,32 @@
       background: rgba(8, 16, 28, .8);
     }
 
+    /* AI "island spirit" chat */
+    #aiBtn {
+      position: absolute; top: 13px; left: 260px; width: 40px; height: 40px;
+      pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 19px; color: #bfe9d6; background: rgba(8, 16, 28, .55);
+      border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; backdrop-filter: blur(8px); z-index: 30;
+    }
+    #aiBtn:hover { color: #fff; background: rgba(8, 16, 28, .8); }
+    #aiChat {
+      position: fixed; right: 18px; bottom: 72px; width: 360px; max-height: 60vh;
+      display: flex; flex-direction: column; background: rgba(8, 16, 28, .9);
+      border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; backdrop-filter: blur(10px);
+      z-index: 40; pointer-events: auto; overflow: hidden; color: #e9f3ee;
+    }
+    #aiChat.hidden { display: none; }
+    #aiHead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255, 255, 255, .06); font-weight: 700; font-size: 14px; }
+    #aiHead button { background: none; border: none; color: #bfe9d6; cursor: pointer; font-size: 16px; }
+    #aiLog { padding: 10px 12px; overflow-y: auto; flex: 1; font-size: 13px; line-height: 1.45; min-height: 80px; }
+    #aiLog .u { color: #bfe9d6; margin: 7px 0; }
+    #aiLog .a { color: #f2e6c8; margin: 7px 0; white-space: pre-wrap; }
+    #aiLog .who { font-weight: 700; opacity: .85; }
+    #aiInputRow { display: flex; gap: 6px; padding: 10px; border-top: 1px solid rgba(255, 255, 255, .1); }
+    #aiInput { flex: 1; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); border-radius: 8px; color: #fff; padding: 8px; font-size: 13px; outline: none; }
+    #aiSend { background: #2e6f57; border: none; border-radius: 8px; color: #fff; padding: 8px 12px; cursor: pointer; font-weight: 700; }
+    #aiSend:hover { background: #388a6b; }
+
     /* settings as a centred modal dialog */
     #settingsModal {
       position: fixed;
@@ -583,7 +609,7 @@
     <div class="panel" id="quests"></div>
     <div id="modeTag">EXPLORE</div>
     <div class="panel" id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> sprint ·
-      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>G</kbd> build · <kbd>Esc</kbd> release</div>
+      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>T</kbd> view · <kbd>G</kbd> build · <kbd>Esc</kbd> release</div>
     <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b></div>
 
     <div id="builderbar" class="hidden">
@@ -602,6 +628,16 @@
     <div id="treebar" class="hidden"><span class="tlbl">Tree type — <kbd>,</kbd><kbd>.</kbd> cycle</span></div>
 
     <div id="gear" title="Settings">⚙</div>
+    <div id="aiBtn" title="Talk to the island spirit">💬</div>
+
+    <div id="aiChat" class="hidden">
+      <div id="aiHead"><span>🔮 Sage — island spirit</span><button id="aiClose">✕</button></div>
+      <div id="aiLog"></div>
+      <div id="aiInputRow">
+        <input id="aiInput" type="text" placeholder="Ask Sage anything…" autocomplete="off">
+        <button id="aiSend">Send</button>
+      </div>
+    </div>
 
     <div id="settingsModal" class="hidden">
       <div class="modalCard">
@@ -921,26 +957,33 @@
         for (let i = 0; i < colliders.length; i++) { const c = colliders[i], dx = nxp - c.x, dz = nzp - c.z, d = Math.hypot(dx, dz), rr = c.r + pr; if (d < rr && d > 1e-4) { const k = (rr - d) / d; nxp += dx * k; nzp += dz * k; } }
         for (let i = 0; i < houses.length; i++) {
           const H = houses[i], cr = Math.cos(H.rot), sr = Math.sin(H.rot), dx = nxp - H.x, dz = nzp - H.z;
-          let lx = dx * cr + dz * sr, lz = -dx * sr + dz * cr;          // world -> house-local
+          let lx = dx * cr - dz * sr, lz = dx * sr + dz * cr;          // world -> house-local
           const hx = H.W / 2, hd = H.D / 2, dh = H.doorHalf, sw = (hx - dh) / 2;
           const walls = [[0, -hd, hx, 0.13], [-hx, 0, 0.13, hd], [hx, 0, 0.13, hd], [(hx + dh) / 2, hd, sw, 0.13], [-(hx + dh) / 2, hd, sw, 0.13]];
           for (let w = 0; w < walls.length; w++) { const a = walls[w], nx = lx - a[0], nz = lz - a[1], ox = a[2] + pr - Math.abs(nx), oz = a[3] + pr - Math.abs(nz); if (ox > 0 && oz > 0) { if (ox < oz) lx = a[0] + (nx < 0 ? -1 : 1) * (a[2] + pr); else lz = a[1] + (nz < 0 ? -1 : 1) * (a[3] + pr); } }
-          nxp = H.x + lx * cr - lz * sr; nzp = H.z + lx * sr + lz * cr;  // local -> world
+          nxp = H.x + lx * cr + lz * sr; nzp = H.z - lx * sr + lz * cr;  // local -> world
         }
         player.position.x = nxp; player.position.z = nzp;
       }
       function houseFloorAt(px, pz) {
-        for (let i = 0; i < houses.length; i++) { const H = houses[i], cr = Math.cos(H.rot), sr = Math.sin(H.rot), dx = px - H.x, dz = pz - H.z, lx = dx * cr + dz * sr, lz = -dx * sr + dz * cr; if (Math.abs(lx) < H.W / 2 - 0.05 && Math.abs(lz) < H.D / 2 - 0.05) return H.y + 1.0; }
+        for (let i = 0; i < houses.length; i++) {
+          const H = houses[i], cr = Math.cos(H.rot), sr = Math.sin(H.rot), dx = px - H.x, dz = pz - H.z, lx = dx * cr - dz * sr, lz = dx * sr + dz * cr, hw = H.W / 2, hd = H.D / 2;
+          if (Math.abs(lx) < hw - 0.05 && Math.abs(lz) < hd - 0.05) return H.y + 1.0;              // interior floor
+          if (Math.abs(lx) < 1.3 && lz >= hd - 0.05) {                                               // walk UP the staircase in front of the door
+            const stairTop = (H.y + 1.0) - (lz - hd) * 0.844;       // follow the real stair slope down the hill
+            if (stairTop > heightAt(px, pz)) return stairTop;        // stand on the steps until they meet the ground
+          }
+        }
         return null;
       }
       function updateHouses(dt) {
         const px = player.position.x, pz = player.position.z, py = player.position.y;
         for (let i = 0; i < houses.length; i++) {
-          const H = houses[i], cr = Math.cos(H.rot), sr = Math.sin(H.rot), dx = px - H.x, dz = pz - H.z, lx = dx * cr + dz * sr, lz = -dx * sr + dz * cr;
+          const H = houses[i], cr = Math.cos(H.rot), sr = Math.sin(H.rot), dx = px - H.x, dz = pz - H.z, lx = dx * cr - dz * sr, lz = dx * sr + dz * cr;
           const inside = Math.abs(lx) < H.W / 2 + 0.4 && Math.abs(lz) < H.D / 2 + 0.4 && Math.abs(py - (H.y + 1)) < 3.2;
           const dwx = H.x + Math.sin(H.rot) * (H.D / 2), dwz = H.z + Math.cos(H.rot) * (H.D / 2);
-          const open = inside || ((px - dwx) * (px - dwx) + (pz - dwz) * (pz - dwz) < 12);
-          H.door.rotation.y += ((open ? -1.35 : 0) - H.door.rotation.y) * Math.min(1, dt * 6);
+          const open = inside || ((px - dwx) * (px - dwx) + (pz - dwz) * (pz - dwz) < 25);
+          H.door.rotation.y += ((open ? -1.95 : 0) - H.door.rotation.y) * Math.min(1, dt * 6);
           const op = inside ? 0.16 : 1.0;
           for (let m = 0; m < H.fade.length; m++) { const mat = H.fade[m]; mat.opacity += (op - mat.opacity) * Math.min(1, dt * 6); mat.transparent = mat.opacity < 0.98; }
           H.lamp.intensity += ((inside ? 1.6 : 0) - H.lamp.intensity) * Math.min(1, dt * 4);
@@ -1282,7 +1325,7 @@
           flattenPad(x, z, 5.5, h);   // level the ground under the house first
           const g = new THREE.Group(); g.position.set(x, h, z); g.rotation.y = rot; scene.add(g);
           // sized for the tall player (eye height 3.0): roomy footprint, ~3.8 door, ~5 ceiling
-          const W = 9, D = 8, th = 0.24, doorHalf = 1.15;
+          const W = 9, D = 8, th = 0.24, doorHalf = 1.35;
           const FLOOR = 1.0, wallH = 5.0, wallY = FLOOR + wallH / 2, wallTop = FLOOR + wallH; // walls 1.0 -> 6.0
           const hh = 3.0, doorH = 3.8;                            // gable rise; clear door opening height
           const iw = W * 0.94, id = D * 0.94, hx = iw / 2, hd = id / 2;
@@ -1399,14 +1442,28 @@
 
       const body = new THREE.Group(); body.visible = false; scene.add(body); // body hidden in first-person; only hands shown
       function limb(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = true; return m; }
-      const torso = limb(1.1, 1.5, 0.6, cloth); torso.position.y = 2.2; body.add(torso);
-      const head = limb(0.7, 0.7, 0.7, skin); head.position.y = 3.3; body.add(head);
-      // legs pivot at hip
-      function pivot(x, y, z) { const g = new THREE.Group(); g.position.set(x, y, z); body.add(g); return g; }
-      const legL = pivot(0.32, 1.5, 0), legR = pivot(-0.32, 1.5, 0);
-      const armL = pivot(0.72, 3.0, 0), armR = pivot(-0.72, 3.0, 0);
-      [[legL, cloth2, shoe], [legR, cloth2, shoe]].forEach(([g, m]) => { const l = limb(0.36, 1.4, 0.4, m); l.position.y = -0.7; g.add(l); const f = limb(0.4, 0.25, 0.6, shoe); f.position.set(0, -1.45, 0.12); g.add(f); });
-      [[armL], [armR]].forEach(([g]) => { const a = limb(0.3, 1.2, 0.3, cloth); a.position.y = -0.6; g.add(a); const hnd = limb(0.32, 0.32, 0.32, skin); hnd.position.y = -1.25; g.add(hnd); });
+      const torso = limb(0.85, 1.5, 0.55, cloth); torso.position.y = 2.2; body.add(torso);
+      const head = limb(0.62, 0.62, 0.62, skin); head.position.y = 3.25; body.add(head);
+      // jointed limbs: hips/shoulders -> knees/elbows, for a realistic gait
+      function pivot(x, y, z, parent) { const g = new THREE.Group(); g.position.set(x, y, z); (parent || body).add(g); return g; }
+      function makeLeg(side) {
+        const hip = pivot(side * 0.24, 1.5, 0);
+        const thigh = limb(0.3, 0.72, 0.34, cloth2); thigh.position.y = -0.36; hip.add(thigh);
+        const knee = pivot(0, -0.72, 0, hip);
+        const shin = limb(0.27, 0.7, 0.3, cloth2); shin.position.y = -0.35; knee.add(shin);
+        const foot = limb(0.32, 0.22, 0.52, shoe); foot.position.set(0, -0.72, 0.13); knee.add(foot);
+        return { hip, knee };
+      }
+      function makeArm(side) {
+        const sh = pivot(side * 0.55, 3.0, 0);
+        const upper = limb(0.24, 0.62, 0.24, cloth); upper.position.y = -0.31; sh.add(upper);
+        const elbow = pivot(0, -0.62, 0, sh);
+        const fore = limb(0.21, 0.58, 0.21, cloth); fore.position.y = -0.29; elbow.add(fore);
+        const hand = limb(0.24, 0.24, 0.24, skin); hand.position.y = -0.62; elbow.add(hand);
+        return { sh, elbow };
+      }
+      const legLj = makeLeg(1), legRj = makeLeg(-1);
+      const armLj = makeArm(1), armRj = makeArm(-1);
 
       /* first-person viewmodel arms (attached to camera) */
       const vm = new THREE.Group(); camera.add(vm);
@@ -1429,8 +1486,46 @@
          CONTROLS  (pointer lock)
          ============================================================ */
       const keys = {};
-      addEventListener('keydown', e => { keys[e.code] = true; });
+      let view = 'first';   // 'first' = FPS, 'third' = third-person (toggle with T while exploring)
+      const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); };
+      addEventListener('keydown', e => { if (typing()) return; keys[e.code] = true; if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first'); });
       addEventListener('keyup', e => { keys[e.code] = false; });
+
+      /* ---- AI "island spirit" chat (NVIDIA Nemotron, OpenAI-compatible streaming over fetch) ---- */
+      const AI_KEY = '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';
+      const AI_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
+      const AI_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+      const aiChat = document.getElementById('aiChat'), aiLog = document.getElementById('aiLog'), aiInput = document.getElementById('aiInput');
+      const aiHistory = []; let aiBusy = false;
+      function aiSysMsg() {
+        return { role: 'system', content: 'You are Sage, the warm, wise and slightly playful spirit of Verdant Isle — a low-poly 3D island in a browser game. Stay in character and keep replies short (1-3 small paragraphs). The player explores in first or third person (press T to switch), collects glowing crystals, plants trees, builds with build mode (press G), and fights slime monsters by clicking. Live state -> crystals: ' + score + '/' + crystals.length + ', slimes defeated: ' + kills + ', health: ' + Math.round(playerHP) + ', biome: ' + currentBiome + '. Offer hints, lore and encouragement. You may also answer off-topic questions helpfully, still in character.' };
+      }
+      function aiAppend(cls, who, text) { const d = document.createElement('div'); d.className = cls; const w = document.createElement('span'); w.className = 'who'; w.textContent = who + ': '; const s = document.createElement('span'); s.textContent = text; d.appendChild(w); d.appendChild(s); aiLog.appendChild(d); aiLog.scrollTop = aiLog.scrollHeight; return s; }
+      async function aiSend() {
+        const q = aiInput.value.trim(); if (!q || aiBusy) return; aiInput.value = '';
+        aiAppend('u', 'You', q); aiHistory.push({ role: 'user', content: q });
+        const span = aiAppend('a', 'Sage', '…'); span.textContent = ''; aiBusy = true;
+        try {
+          const res = await fetch(AI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_KEY }, body: JSON.stringify({ model: AI_MODEL, messages: [aiSysMsg(), ...aiHistory], temperature: 1, top_p: 0.95, max_tokens: 1024, stream: true }) });
+          if (!res.ok) { span.textContent = '(Sage is silent — API error ' + res.status + ')'; return; }
+          const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', acc = '';
+          while (true) {
+            const { value, done } = await reader.read(); if (done) break;
+            buf += dec.decode(value, { stream: true }); const lines = buf.split('\n'); buf = lines.pop();
+            for (const ln of lines) { const l = ln.trim(); if (!l.startsWith('data:')) continue; const d = l.slice(5).trim(); if (d === '[DONE]') { buf = ''; break; } try { const j = JSON.parse(d); const tok = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content; if (tok) { acc += tok; span.textContent = acc; aiLog.scrollTop = aiLog.scrollHeight; } } catch (_) { } }
+          }
+          aiHistory.push({ role: 'assistant', content: acc || '...' });
+        } catch (err) { span.textContent = '(Could not reach Sage. The NVIDIA endpoint may block direct browser calls (CORS) — a small local proxy would be needed.)'; }
+        finally { aiBusy = false; }
+      }
+      document.getElementById('aiBtn').addEventListener('click', () => {
+        aiChat.classList.remove('hidden'); if (document.exitPointerLock) document.exitPointerLock();
+        if (!aiLog.dataset.greeted) { aiAppend('a', 'Sage', 'Greetings, wanderer. I am Sage, spirit of Verdant Isle. Ask me for hints, lore, or where the crystals hide.'); aiLog.dataset.greeted = '1'; }
+        setTimeout(() => aiInput.focus(), 50);
+      });
+      document.getElementById('aiClose').addEventListener('click', () => aiChat.classList.add('hidden'));
+      document.getElementById('aiSend').addEventListener('click', aiSend);
+      aiInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); aiSend(); } });
       let pitch = 0, yaw = 0, locked = false;
       document.addEventListener('mousemove', e => { if (!locked) return; yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022; pitch = Math.max(-1.3, Math.min(1.3, pitch)); });
       const overlay = document.getElementById('overlay');
@@ -1882,7 +1977,6 @@
 
         // orientation
         player.rotation.y = yaw;
-        camera.rotation.x = pitch;
 
         // input -> horizontal velocity (camera-relative on yaw plane)
         const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
@@ -1914,22 +2008,40 @@
         if (player.position.y <= feet) { player.position.y = feet; vy = 0; onGround = true; } else onGround = false;
         if (mode === 'fps' && !submerged && keys['Space'] && onGround) { vy = 9.2; onGround = false; sfxJump(); }
 
-        // head bob
-        const moveAmt = Math.min(1, Math.hypot(vel.x, vel.z) / speed);
-        if (moving) bob += dt * (sprint ? 16 : 11);
+        // head bob + gait driven by ACTUAL horizontal speed -> always animates while moving (even when gliding to a stop)
+        const hsp = Math.hypot(vel.x, vel.z);
+        const moveAmt = Math.min(1, hsp / 7);
+        if (hsp > 0.4 && onGround) bob += dt * (7 + hsp * 1.1);
         // footstep SFX cadence
-        if (moving && onGround) { stepAcc += dt * (sprint ? 2.7 : 1.9); if (stepAcc >= 1) { stepAcc = 0; sfxStep(); } } else stepAcc = 0.75;
-        camera.position.y = EYE + Math.sin(bob) * 0.07 * moveAmt;
-        camera.position.x = Math.cos(bob * 0.5) * 0.04 * moveAmt;
+        if (hsp > 0.4 && onGround) { stepAcc += dt * (1.3 + hsp * 0.16); if (stepAcc >= 1) { stepAcc = 0; sfxStep(); } } else stepAcc = 0.75;
+        const third = mode === 'fps' && view === 'third';
+        if (third) {   // orbit camera behind/above the visible character
+          const tp = Math.max(-0.6, Math.min(1.0, pitch)), dist = 6.4, ty = 2.6;
+          camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
+          camera.rotation.x = tp;
+        } else {
+          camera.position.set(Math.cos(bob * 0.5) * 0.04 * moveAmt, EYE + Math.sin(bob) * 0.07 * moveAmt, 0);
+          camera.rotation.x = pitch;
+        }
 
         // visible body follows player, yawed, with walking gait
         body.position.set(player.position.x, player.position.y, player.position.z);
         body.rotation.y = yaw;
-        const gait = Math.sin(bob * 1.0) * 0.7 * moveAmt;
-        legL.rotation.x = gait; legR.rotation.x = -gait;
-        armL.rotation.x = -gait * 0.8; armR.rotation.x = gait * 0.8;
-        // hide head in first-person so the camera isn't looking from inside the head box
-        head.visible = false;
+        const sw = Math.sin(bob), m = moveAmt;
+        // hips swing fore/aft; knees flex on the forward swing to clear the ground
+        legLj.hip.rotation.x = sw * 0.85 * m;
+        legRj.hip.rotation.x = -sw * 0.85 * m;
+        legLj.knee.rotation.x = (0.12 + Math.max(0, -sw) * 1.15) * m;
+        legRj.knee.rotation.x = (0.12 + Math.max(0, sw) * 1.15) * m;
+        // arms swing opposite the legs, with a natural elbow bend
+        armLj.sh.rotation.x = -sw * 0.6 * m;
+        armRj.sh.rotation.x = sw * 0.6 * m;
+        armLj.elbow.rotation.x = -(0.25 + Math.abs(sw) * 0.35) * m;
+        armRj.elbow.rotation.x = -(0.25 + Math.abs(sw) * 0.35) * m;
+        // attack swing on the right arm (visible in third-person)
+        if (swingT > 0) { const k = Math.sin(Math.min(1, swingT / 0.28) * Math.PI); armRj.sh.rotation.x = -1.9 * k; armRj.sh.rotation.z = -0.3 * k; armRj.elbow.rotation.x = -1.1 * k; } else { armRj.sh.rotation.z = 0; }
+        // show the full character only in third-person; first-person shows just the hands
+        body.visible = third; head.visible = third; vm.visible = !third;
 
         // viewmodel arm sway/bob
         vmL.rotation.x = -0.5 + Math.sin(bob) * 0.18 * moveAmt;
