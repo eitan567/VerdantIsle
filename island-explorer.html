@@ -198,6 +198,44 @@
     #aiSend { background: #2e6f57; border: none; border-radius: 8px; color: #fff; padding: 8px 12px; cursor: pointer; font-weight: 700; }
     #aiSend:hover { background: #388a6b; }
 
+    /* treasure toast + chest prompt */
+    #toast {
+      position: fixed; top: 84px; left: 50%; transform: translateX(-50%) translateY(-10px);
+      background: rgba(20, 14, 4, .9); color: #ffe9a8; border: 1px solid rgba(255, 207, 58, .5);
+      padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 45;
+      opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; max-width: 70vw; text-align: center;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #chestPrompt {
+      position: fixed; bottom: 116px; left: 50%; transform: translateX(-50%);
+      background: rgba(8, 16, 28, .8); color: #ffe9a8; border: 1px solid rgba(255, 255, 255, .18);
+      padding: 7px 14px; border-radius: 10px; font-size: 13px; z-index: 35; pointer-events: none;
+    }
+    #chestPrompt.hidden { display: none; }
+
+    /* inventory */
+    #invBtn {
+      position: absolute; top: 13px; left: 308px; width: 40px; height: 40px;
+      pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 19px; color: #bfe9d6; background: rgba(8, 16, 28, .55);
+      border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; backdrop-filter: blur(8px); z-index: 30;
+    }
+    #invBtn:hover { color: #fff; background: rgba(8, 16, 28, .8); }
+    #inv { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); z-index: 50; pointer-events: auto; }
+    #inv.hidden { display: none; }
+    .invCard { background: rgba(12, 20, 30, .96); border: 1px solid rgba(255, 255, 255, .16); border-radius: 16px; padding: 16px; width: 380px; max-width: 90vw; color: #e9f3ee; }
+    .invHead { display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 12px; }
+    .invHead button { background: none; border: none; color: #bfe9d6; cursor: pointer; font-size: 16px; }
+    #invGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; min-height: 90px; }
+    .invSlot { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; padding: 4px; }
+    .invSlot:hover { background: rgba(255, 255, 255, .12); }
+    .invSlot.eq { border-color: #ffcf3a; box-shadow: 0 0 0 1px #ffcf3a inset; }
+    .invSlot .ic { font-size: 26px; }
+    .invSlot .nm { font-size: 9px; opacity: .82; text-align: center; margin-top: 2px; line-height: 1.1; }
+    .invSlot .ct { position: absolute; top: 3px; right: 5px; font-size: 11px; font-weight: 700; color: #ffe9a8; }
+    .invEmpty { grid-column: 1 / -1; opacity: .65; font-size: 13px; text-align: center; padding: 16px; }
+    #invHint { margin-top: 12px; font-size: 11px; opacity: .6; text-align: center; }
+
     /* settings as a centred modal dialog */
     #settingsModal {
       position: fixed;
@@ -216,14 +254,61 @@
     }
 
     #settingsModal .modalCard {
-      width: 340px;
-      max-height: 86vh;
-      overflow-y: auto;
+      width: 660px;
+      max-width: 94vw;
+      max-height: 92vh;
       background: rgba(12, 20, 32, .97);
       border: 1px solid rgba(255, 255, 255, .14);
       border-radius: 16px;
-      padding: 18px 20px;
+      padding: 20px 24px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+    }
+
+    .setCols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 30px;
+    }
+
+    .setSec {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      color: #7fe7c4;
+      margin: 14px 0 6px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(127, 231, 196, .22);
+    }
+
+    .setSec:first-child {
+      margin-top: 2px;
+    }
+
+    .setFooter {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    .setFooter button {
+      flex: 1;
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      padding: 9px;
+      background: rgba(255, 255, 255, .16);
+      color: #dfeaf3;
+    }
+
+    .setFooter button.prim {
+      background: #7fe7c4;
+      color: #08121e;
     }
 
     #settingsModal .modalHead {
@@ -609,8 +694,19 @@
     <div class="panel" id="quests"></div>
     <div id="modeTag">EXPLORE</div>
     <div class="panel" id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> sprint ·
-      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>T</kbd> view · <kbd>G</kbd> build · <kbd>Esc</kbd> release</div>
-    <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b></div>
+      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>T</kbd> view · <kbd>G</kbd> build · <kbd>Esc</kbd> release</div>
+    <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b> &nbsp; 🔑 <b id="keysNum">0</b> &nbsp; 🪙 <b id="goldNum">0</b> &nbsp; 🗡 <b id="eqW">Fists</b></div>
+    <div id="toast"></div>
+    <div id="chestPrompt" class="hidden">🔑 Press <kbd>E</kbd> to open chest</div>
+
+    <div id="invBtn" title="Inventory (I)">🎒</div>
+    <div id="inv" class="hidden">
+      <div class="invCard">
+        <div class="invHead"><span>🎒 Inventory</span><button id="invClose">✕</button></div>
+        <div id="invGrid"></div>
+        <div id="invHint">Click a weapon to equip · click a kit to use it</div>
+      </div>
+    </div>
 
     <div id="builderbar" class="hidden">
       <button data-t="tree" class="sel">🌳 Tree</button>
@@ -643,34 +739,38 @@
       <div class="modalCard">
         <div class="modalHead"><span>⚙ Settings</span><button id="settingsClose">✕</button></div>
         <div id="sliders">
-          <div class="row"><label>Color depth <b id="vSat">115%</b></label><input type="range" id="sSat" min="50"
-              max="220" value="115"></div>
-          <div class="row"><label>Contrast <b id="vCon">105%</b></label><input type="range" id="sCon" min="80" max="160"
-              value="105"></div>
-          <div class="row"><label>Brightness <b id="vBri">100%</b></label><input type="range" id="sBri" min="60"
-              max="140" value="100"></div>
-          <div class="row"><label>Sun strength <b id="vSun">1.40</b></label><input type="range" id="sSun" min="0"
-              max="260" value="140"></div>
-          <div class="row"><label>Sun warmth <b id="vWar">50%</b></label><input type="range" id="sWar" min="0" max="100"
-              value="50"></div>
-          <div class="row"><label>Sky fill <b id="vFil">50%</b></label><input type="range" id="sFil" min="0" max="160"
-              value="50"></div>
-          <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
-              max="100" value="90"></div>
-          <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
-          <div class="row"><label>Classic tree types — enable in build menu</label></div>
-          <div id="classicTrees">
-            <label><input type="checkbox" data-ck="oak"> Oak</label>
-            <label><input type="checkbox" data-ck="bigoak"> Big Oak</label>
-            <label><input type="checkbox" data-ck="pine"> Pine</label>
-            <label><input type="checkbox" data-ck="birch"> Birch</label>
-            <label><input type="checkbox" data-ck="palm"> Palm</label>
-            <label><input type="checkbox" data-ck="fruit"> Fruit</label>
+          <div class="setCols">
+            <div class="setCol">
+              <div class="setSec">Display</div>
+              <div class="row"><label>Color depth <b id="vSat">115%</b></label><input type="range" id="sSat" min="50" max="220" value="115"></div>
+              <div class="row"><label>Contrast <b id="vCon">105%</b></label><input type="range" id="sCon" min="80" max="160" value="105"></div>
+              <div class="row"><label>Brightness <b id="vBri">100%</b></label><input type="range" id="sBri" min="60" max="140" value="100"></div>
+              <div class="setSec">Audio</div>
+              <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0" max="100" value="90"></div>
+              <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
+            </div>
+            <div class="setCol">
+              <div class="setSec">Lighting</div>
+              <div class="row"><label>Sun strength <b id="vSun">1.40</b></label><input type="range" id="sSun" min="0" max="260" value="140"></div>
+              <div class="row"><label>Sun warmth <b id="vWar">50%</b></label><input type="range" id="sWar" min="0" max="100" value="50"></div>
+              <div class="row"><label>Sky fill <b id="vFil">50%</b></label><input type="range" id="sFil" min="0" max="160" value="50"></div>
+              <div class="setSec">Classic tree types</div>
+              <div id="classicTrees">
+                <label><input type="checkbox" data-ck="oak"> Oak</label>
+                <label><input type="checkbox" data-ck="bigoak"> Big Oak</label>
+                <label><input type="checkbox" data-ck="pine"> Pine</label>
+                <label><input type="checkbox" data-ck="birch"> Birch</label>
+                <label><input type="checkbox" data-ck="palm"> Palm</label>
+                <label><input type="checkbox" data-ck="fruit"> Fruit</label>
+              </div>
+            </div>
           </div>
-          <div class="row"><label>Game save</label></div>
-          <div class="btns"><button id="sSaveB" class="alt">💾 Save game</button><button id="sLoadB" class="alt">📂 Load
-              game</button></div>
-          <div class="btns"><button id="sApply" class="alt">Day / Dusk</button><button id="sReset">Reset</button></div>
+          <div class="setFooter">
+            <button id="sSaveB">💾 Save game</button>
+            <button id="sLoadB">📂 Load game</button>
+            <button id="sApply">🌗 Day / Dusk</button>
+            <button id="sReset" class="prim">↺ Reset</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1038,13 +1138,13 @@
       const lakeMat = new THREE.MeshStandardMaterial({ color: 0x2f8fb0, transparent: true, opacity: 0.85, roughness: 0.22, metalness: 0.0, side: THREE.DoubleSide });
       const lakeMeshes = [];
       for (let i = 0; i < LAKES.length; i++) {
-        const L = LAKES[i];
-        // surrounding rim level (sample 4 points just outside the basin, where the carve is ~0)
-        let rim = 0; const rs = [[L.r, 0], [-L.r, 0], [0, L.r], [0, -L.r]];
-        for (const o of rs) rim += heightAt(L.x + o[0], L.z + o[1]);
-        rim /= 4;
-        const wy = Math.max(WATER + 1.5, rim - L.depth * 0.45);   // lake surface: in the basin, above the sea
-        const disc = new THREE.Mesh(new THREE.CircleGeometry(L.r * 0.84, 36), lakeMat);
+        const L = LAKES[i], rad = L.r * 0.8;
+        // sample the bank all around the disc edge; the surface must sit just BELOW the lowest
+        // bank point, so the water edge is always tucked under the ground (never floating over it)
+        let minBank = 1e9;
+        for (let a = 0; a < 12; a++) { const ang = a / 12 * 6.283, hh = heightAt(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad); if (hh < minBank) minBank = hh; }
+        const wy = Math.max(WATER + 1.0, minBank - 0.3);   // surface just under the lowest bank
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(rad, 36), lakeMat);
         disc.rotation.x = -Math.PI / 2; disc.position.set(L.x, wy, L.z); disc.renderOrder = 1;
         scene.add(disc); lakeMeshes.push({ mesh: disc, wy });
       }
@@ -1488,7 +1588,14 @@
       const keys = {};
       let view = 'first';   // 'first' = FPS, 'third' = third-person (toggle with T while exploring)
       const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); };
-      addEventListener('keydown', e => { if (typing()) return; keys[e.code] = true; if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first'); });
+      addEventListener('keydown', e => { if (typing()) return; keys[e.code] = true; if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first'); if (e.code === 'KeyE' && mode === 'fps') tryOpenChest(); if (e.code === 'KeyI') toggleInv(); });
+      function toggleInv() { const p = document.getElementById('inv'); p.classList.toggle('hidden'); if (!p.classList.contains('hidden')) { if (document.exitPointerLock) document.exitPointerLock(); renderInv(); } }
+      window.addEventListener('load', () => {
+        const ib = document.getElementById('invBtn'), ip = document.getElementById('inv'), ic = document.getElementById('invClose');
+        if (ib) ib.addEventListener('click', toggleInv);
+        if (ic) ic.addEventListener('click', () => ip.classList.add('hidden'));
+        if (ip) ip.addEventListener('click', e => { if (e.target === ip) ip.classList.add('hidden'); });
+      });
       addEventListener('keyup', e => { keys[e.code] = false; });
 
       /* ---- AI "island spirit" chat (NVIDIA Nemotron, OpenAI-compatible streaming over fetch) ---- */
@@ -1915,7 +2022,7 @@
          ENEMIES + COMBAT  (roaming slimes, click to attack with the torch)
          ============================================================ */
       const enemies = [];
-      let playerHP = 100, kills = 0, swingT = 0, hurtFlash = 0;
+      let playerHP = 100, kills = 0, swingT = 0, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0;
       const _slimeG = new THREE.IcosahedronGeometry(0.62, 1);
       const _slimeMats = [new THREE.MeshStandardMaterial({ color: 0x7ac74f, roughness: 0.55, flatShading: true }),
       new THREE.MeshStandardMaterial({ color: 0xb05fd6, roughness: 0.55, flatShading: true }),
@@ -1931,6 +2038,172 @@
       }
       for (let i = 0; i < 9; i++) { for (let tr = 0; tr < 50; tr++) { const x = (rnd() - 0.5) * WORLD * 0.6, z = (rnd() - 0.5) * WORLD * 0.6; if (heightAt(x, z) > WATER + 1.5) { spawnSlime(x, z); break; } } }
       function hurtPlayer(n) { playerHP -= n; hurtFlash = 0.15; const d = document.getElementById('dmg'); if (d) { d.classList.add('hit'); setTimeout(() => d.classList.remove('hit'), 120); } if (playerHP <= 0) { playerHP = 100; respawn(); } const e = document.getElementById('hpNum'); if (e) e.textContent = Math.max(0, playerHP | 0); }
+
+      /* ============================================================
+         TREASURE — golden keys + lockable chests with loot
+         ============================================================ */
+      const keysArr = [], chests = [];
+      const _goldMat = new THREE.MeshStandardMaterial({ color: 0xffcf3a, metalness: 0.7, roughness: 0.3, emissive: 0x4a3500, emissiveIntensity: 0.45 });
+      const _chestWood = new THREE.MeshStandardMaterial({ color: 0x7a4a22, roughness: 0.85, flatShading: true });
+      const _chestMetal = new THREE.MeshStandardMaterial({ color: 0xd9c24a, metalness: 0.6, roughness: 0.4 });
+      const WEAPONS = ['Iron Sword', 'Battle Axe', 'War Hammer', 'Bronze Dagger', 'Spiked Mace'];
+      function makeKeyMesh() {
+        const g = new THREE.Group();
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.055, 8, 16), _goldMat); ring.rotation.y = Math.PI / 2; g.add(ring);
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8), _goldMat); shaft.position.y = -0.33; g.add(shaft);
+        const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.18), _goldMat); t1.position.set(0, -0.5, 0.09); g.add(t1);
+        const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.13), _goldMat); t2.position.set(0, -0.42, 0.08); g.add(t2);
+        g.children.forEach(c => c.castShadow = true); return g;
+      }
+      function spawnKey(x, z, h) { const yy = (h !== undefined ? h : heightAt(x, z)) + 1.3; const m = makeKeyMesh(); m.position.set(x, yy, z); scene.add(m); keysArr.push({ mesh: m, baseY: yy, got: false }); }
+      function makeChest(x, z, rot, y) {
+        const g = new THREE.Group(); g.position.set(x, (y !== undefined ? y : heightAt(x, z)), z); g.rotation.y = rot || 0; scene.add(g);
+        const tw = 0.12;
+        function wood(w, h, d, px, py, pz) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), _chestWood); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; g.add(m); return m; }
+        wood(1.3, 0.12, 0.9, 0, 0.06, 0);          // floor of the chest
+        wood(1.3, 0.58, tw, 0, 0.41, -0.39);        // back wall
+        wood(1.3, 0.58, tw, 0, 0.41, 0.39);         // front wall  -> interior is hollow
+        wood(tw, 0.58, 0.9, -0.59, 0.41, 0);        // left wall
+        wood(tw, 0.58, 0.9, 0.59, 0.41, 0);         // right wall
+        for (const bx of [-0.45, 0.45]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.62, tw + 0.05), _chestMetal); b.position.set(bx, 0.41, 0.4); g.add(b); }
+        const lock = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.24, 0.09), _chestMetal); lock.position.set(0, 0.55, 0.46); g.add(lock);
+        const lid = new THREE.Group(); lid.position.set(0, 0.7, -0.45); g.add(lid);   // hinge at the back-top
+        const lidBox = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.26, 0.9), _chestWood); lidBox.position.set(0, 0.13, 0.45); lidBox.castShadow = true; lid.add(lidBox);
+        for (const bx of [-0.45, 0.45]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.94), _chestMetal); b.position.set(bx, 0.13, 0.45); lid.add(b); }
+        // treasure piled on the floor inside — hidden once the chest is opened and looted
+        const pile = new THREE.Group(); pile.position.set(0, 0.14, 0); g.add(pile);
+        for (const p of [[-0.22, 0.08, 0.13], [0.18, -0.08, 0.12], [0.0, 0.16, 0.11], [0.26, 0.14, 0.1], [-0.24, -0.16, 0.1], [0.06, -0.04, 0.12]]) { const m = new THREE.Mesh(new THREE.SphereGeometry(p[2], 6, 5), _goldMat); m.position.set(p[0], p[2] * 0.6, p[1]); pile.add(m); }
+        const c = { lid, pile, x, z, y: (y !== undefined ? y : heightAt(x, z)), opened: false, openAmt: 0 }; chests.push(c); colliders.push({ x, z, r: 0.85 }); return c;
+      }
+      // a chest inside every cottage, plus a few hidden outdoors
+      for (let i = 0; i < houses.length; i++) { const H = houses[i], lx = 1.7, lz = -2.3; const cx = H.x + Math.cos(H.rot) * lx + Math.sin(H.rot) * lz, cz = H.z - Math.sin(H.rot) * lx + Math.cos(H.rot) * lz; makeChest(cx, cz, H.rot, H.y + 1.1); }
+      for (let i = 0; i < 5; i++) { for (let tr = 0; tr < 40; tr++) { const x = (rnd() - 0.5) * WORLD * 0.7, z = (rnd() - 0.5) * WORLD * 0.7; const h = placeOK(x, z, WATER + 1.5, 7); if (h !== null) { makeChest(x, z, rnd() * 6.28, h); break; } } }
+      // golden keys scattered across the island
+      for (let i = 0; i < 14; i++) { for (let tr = 0; tr < 40; tr++) { const x = (rnd() - 0.5) * WORLD * 0.82, z = (rnd() - 0.5) * WORLD * 0.82; const h = placeOK(x, z, WATER + 1.2, 5); if (h !== null) { spawnKey(x, z, h); break; } } }
+
+      let _toastT = null;
+      function toast(s) { const el = document.getElementById('toast'); if (!el) return; el.textContent = s; el.classList.add('show'); clearTimeout(_toastT); _toastT = setTimeout(() => el.classList.remove('show'), 3400); }
+      function updateTreasureHUD() { const k = document.getElementById('keysNum'), gN = document.getElementById('goldNum'); if (k) k.textContent = keysHeld; if (gN) gN.textContent = gold; }
+      /* ---- inventory + flying-loot effects ---- */
+      const inventory = {}; let equippedWeapon = null;
+      const WEAPON_DMG = { 'Iron Sword': 2, 'Battle Axe': 3, 'War Hammer': 4, 'Bronze Dagger': 2, 'Spiked Mace': 3 };
+      function addItem(it) { const cur = inventory[it.id]; if (cur) cur.count += (it.count || 1); else inventory[it.id] = Object.assign({ count: it.count || 1 }, it); renderInv(); }
+      function useItem(id) {
+        const it = inventory[id]; if (!it) return;
+        if (it.kind === 'consumable') { playerHP = Math.min(100, playerHP + (it.heal || 40)); const e = document.getElementById('hpNum'); if (e) e.textContent = playerHP | 0; it.count--; toast('🧰 Used ' + it.name + ' (+' + (it.heal || 40) + ' HP)'); if (it.count <= 0) delete inventory[id]; sfxCollect(); }
+        else if (it.kind === 'weapon') { equippedWeapon = it; playerDmg = it.dmg || 1; const e = document.getElementById('eqW'); if (e) e.textContent = it.name; toast('🗡 Equipped ' + it.name + ' (attack ' + playerDmg + ')'); }
+        renderInv();
+      }
+      function renderInv() {
+        const grid = document.getElementById('invGrid'); if (!grid) return; grid.innerHTML = '';
+        const ids = Object.keys(inventory);
+        if (!ids.length) { grid.innerHTML = '<div class="invEmpty">Empty — open treasure chests to find weapons, kits and loot.</div>'; return; }
+        for (const id of ids) { const it = inventory[id]; const s = document.createElement('div'); s.className = 'invSlot' + (equippedWeapon && equippedWeapon.id === id ? ' eq' : ''); s.innerHTML = '<div class="ic">' + it.icon + '</div><div class="nm">' + it.name + '</div>' + (it.count > 1 ? '<div class="ct">' + it.count + '</div>' : ''); s.addEventListener('click', () => useItem(id)); grid.appendChild(s); }
+      }
+      const lootFx = []; const _emojiTex = {};
+      function emojiTexture(ch) { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.font = '48px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(ch, 32, 36); return new THREE.CanvasTexture(c); }
+      function spawnLootFx(ch, chest) {
+        if (!_emojiTex[ch]) _emojiTex[ch] = emojiTexture(ch);
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: _emojiTex[ch], transparent: true, depthTest: false })); sp.scale.set(0.9, 0.9, 0.9);
+        const sx = chest ? chest.x : player.position.x, sz = chest ? chest.z : player.position.z, sy = (chest ? chest.y + 1.1 : player.position.y + 1);
+        sp.position.set(sx, sy, sz); scene.add(sp);
+        lootFx.push({ sp, age: 0, sx, sz, sy });
+      }
+      function updateLootFx(dt) {
+        for (let i = lootFx.length - 1; i >= 0; i--) {
+          const f = lootFx[i]; f.age += dt; const p = Math.min(1, f.age / 1.1);
+          const tx = player.position.x, tz = player.position.z, ty = player.position.y + 1.5;
+          f.sp.position.x = f.sx + (tx - f.sx) * p; f.sp.position.z = f.sz + (tz - f.sz) * p;
+          f.sp.position.y = f.sy + Math.sin(p * Math.PI) * 1.8 + (ty - f.sy) * p;
+          const s = 0.95 * (1 - p * 0.55); f.sp.scale.set(s, s, s); f.sp.material.opacity = 1 - p * p;
+          if (f.age >= 1.1) { scene.remove(f.sp); f.sp.material.dispose(); lootFx.splice(i, 1); }
+        }
+      }
+      function grantLoot(chest) {
+        const rolls = 1 + (Math.random() < 0.55 ? 1 : 0), msgs = [];
+        for (let i = 0; i < rolls; i++) {
+          const r = Math.random();
+          if (r < 0.4) { const c = 20 + (Math.random() * 60 | 0); gold += c; msgs.push('🪙 ' + c + ' gold'); spawnLootFx('🪙', chest); }
+          else if (r < 0.6) { const s = 5 + (Math.random() * 20 | 0); gold += s; msgs.push('💰 ' + s + ' silver'); spawnLootFx('💰', chest); }
+          else if (r < 0.78) { addItem({ id: 'medkit', name: 'First-aid Kit', icon: '🧰', kind: 'consumable', heal: 40 }); msgs.push('🧰 First-aid Kit'); spawnLootFx('🧰', chest); }
+          else { const n = WEAPONS[(Math.random() * WEAPONS.length) | 0]; addItem({ id: 'w_' + n, name: n, icon: '⚔️', kind: 'weapon', dmg: WEAPON_DMG[n] || 2 }); msgs.push('⚔ ' + n); spawnLootFx('⚔️', chest); }
+        }
+        toast('Chest opened!  ' + msgs.join('   ·   ')); updateTreasureHUD();
+      }
+      function tryOpenChest() {
+        let best = null, bd = 3.2;
+        for (let i = 0; i < chests.length; i++) { const c = chests[i]; if (c.opened) continue; const d = Math.hypot(player.position.x - c.x, player.position.z - c.z); if (d < bd) { bd = d; best = c; } }
+        if (!best) return;
+        if (keysHeld <= 0) { toast('🔒 Locked — you need a golden key'); return; }
+        keysHeld--; best.opened = true; sfxCollect(); grantLoot(best); if (best.pile) best.pile.visible = false;
+      }
+
+      /* ============================================================
+         WILDLIFE — circling birds, hopping rabbits, grazing deer
+         ============================================================ */
+      const birds = [], critters = [];
+      (function () {
+        const birdMat = new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 0.7, flatShading: true });
+        function makeBird() {
+          const g = new THREE.Group();
+          const bod = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.6, 6), birdMat); bod.rotation.x = -Math.PI / 2; g.add(bod);
+          const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), birdMat); head.position.z = 0.34; g.add(head);
+          const wl = new THREE.Group(), wr = new THREE.Group(); g.add(wl, wr);
+          const wlm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.03, 0.28), birdMat); wlm.position.x = -0.38; wl.add(wlm);
+          const wrm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.03, 0.28), birdMat); wrm.position.x = 0.38; wr.add(wrm);
+          scene.add(g);
+          return { g, wl, wr, cx: (rnd() - 0.5) * WORLD * 0.7, cz: (rnd() - 0.5) * WORLD * 0.7, r: 18 + rnd() * 46, ang: rnd() * 6.28, sp: 0.22 + rnd() * 0.3, hgt: 30 + rnd() * 34, flap: 8 + rnd() * 6, fph: rnd() * 6.28 };
+        }
+        for (let i = 0; i < 14; i++) birds.push(makeBird());
+
+        const furBrown = new THREE.MeshStandardMaterial({ color: 0x9c6b40, roughness: 0.95, flatShading: true });
+        const furWhite = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.95, flatShading: true });
+        const furDeer = new THREE.MeshStandardMaterial({ color: 0xb5854c, roughness: 0.95, flatShading: true });
+        const antler = new THREE.MeshStandardMaterial({ color: 0x6b5333, roughness: 1, flatShading: true });
+        function part(w, h, d, mat, x, y, z, parent) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; }
+        function mkCritter(g, legs, type, sp) { const x = (rnd() - 0.5) * WORLD * 0.7, z = (rnd() - 0.5) * WORLD * 0.7; g.position.set(x, heightAt(x, z), z); return { g, legs, type, sp, ang: rnd() * 6.28, t: rnd() * 9, dir: 1 + rnd() * 3, hop: rnd() * 6.28 }; }
+        function makeRabbit() {
+          const g = new THREE.Group();
+          part(0.4, 0.34, 0.6, furBrown, 0, 0.32, 0, g);
+          part(0.3, 0.3, 0.32, furBrown, 0, 0.5, 0.36, g);
+          part(0.08, 0.3, 0.05, furBrown, -0.08, 0.78, 0.34, g); part(0.08, 0.3, 0.05, furBrown, 0.08, 0.78, 0.34, g);
+          part(0.14, 0.14, 0.14, furWhite, 0, 0.3, -0.34, g);
+          const legs = []; for (const sx of [-0.13, 0.13]) { legs.push(part(0.1, 0.22, 0.16, furBrown, sx, 0.13, -0.18, g)); legs.push(part(0.1, 0.18, 0.14, furBrown, sx, 0.13, 0.22, g)); }
+          scene.add(g); return mkCritter(g, legs, 'rabbit', 4.0);
+        }
+        function makeDeer() {
+          const g = new THREE.Group();
+          part(0.5, 0.6, 1.4, furDeer, 0, 1.1, 0, g);
+          const neck = part(0.3, 0.7, 0.3, furDeer, 0, 1.6, 0.7, g); neck.rotation.x = -0.5;
+          part(0.28, 0.3, 0.5, furDeer, 0, 1.95, 1.0, g);
+          part(0.05, 0.4, 0.05, antler, -0.1, 2.2, 1.0, g); part(0.05, 0.4, 0.05, antler, 0.1, 2.2, 1.0, g);
+          part(0.04, 0.22, 0.04, antler, -0.22, 2.45, 1.05, g); part(0.04, 0.22, 0.04, antler, 0.22, 2.45, 1.05, g);
+          const legs = []; for (const sx of [-0.2, 0.2]) for (const sz of [-0.5, 0.5]) legs.push(part(0.14, 1.0, 0.14, furDeer, sx, 0.5, sz, g));
+          scene.add(g); return mkCritter(g, legs, 'deer', 3.0);
+        }
+        for (let i = 0; i < 10; i++) { for (let tr = 0; tr < 30; tr++) { const r = makeRabbit(); if (heightAt(r.g.position.x, r.g.position.z) > WATER + 0.5) { critters.push(r); break; } else scene.remove(r.g); } }
+        for (let i = 0; i < 6; i++) { for (let tr = 0; tr < 30; tr++) { const d = makeDeer(); if (heightAt(d.g.position.x, d.g.position.z) > WATER + 1) { critters.push(d); break; } else scene.remove(d.g); } }
+      })();
+      function updateWildlife(dt, t) {
+        for (let i = 0; i < birds.length; i++) {
+          const b = birds[i]; b.ang += b.sp * dt;
+          b.g.position.set(b.cx + Math.cos(b.ang) * b.r, b.hgt + Math.sin(t * 0.5 + b.fph) * 4, b.cz + Math.sin(b.ang) * b.r);
+          b.g.rotation.y = -b.ang; const f = Math.sin(t * b.flap + b.fph) * 0.7; b.wl.rotation.z = f; b.wr.rotation.z = -f;
+        }
+        for (let i = 0; i < critters.length; i++) {
+          const c = critters[i]; c.t += dt; c.dir -= dt;
+          const dpx = c.g.position.x - player.position.x, dpz = c.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
+          let sp = c.sp;
+          if (mode === 'fps' && pd < 11) { c.ang = Math.atan2(dpx, dpz); sp = c.sp * 2.2; }   // flee the player
+          else if (c.dir <= 0) { c.ang += (Math.random() - 0.5) * 2.0; c.dir = 2 + Math.random() * 4; }
+          const nx = c.g.position.x + Math.sin(c.ang) * sp * dt, nz = c.g.position.z + Math.cos(c.ang) * sp * dt;
+          if (heightAt(nx, nz) > WATER + 0.3) { c.g.position.x = nx; c.g.position.z = nz; } else c.ang += Math.PI;
+          const lim = WORLD * 0.5 - 4; c.g.position.x = Math.max(-lim, Math.min(lim, c.g.position.x)); c.g.position.z = Math.max(-lim, Math.min(lim, c.g.position.z));
+          c.g.position.y = Math.max(heightAt(c.g.position.x, c.g.position.z), WATER); c.g.rotation.y = c.ang;
+          if (c.type === 'rabbit') { c.hop += dt * (6 + sp); c.g.position.y += Math.max(0, Math.sin(c.hop)) * 0.4; }
+          else { const g2 = Math.sin(c.t * 5) * 0.5; for (let l = 0; l < c.legs.length; l++) c.legs[l].rotation.x = (l % 2 ? g2 : -g2); }
+        }
+      }
       function attack() {
         if (mode !== 'fps' || !locked) return;
         swingT = 0.28;
@@ -1938,7 +2211,7 @@
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], dx = e.position.x - player.position.x, dz = e.position.z - player.position.z, d = Math.hypot(dx, dz) || 1;
           if (d < 4.2 && (dx * fx + dz * fz) / d > 0.35) {
-            e.userData.hp--; sfxHit();
+            e.userData.hp -= playerDmg; sfxHit();
             if (e.userData.hp <= 0) { scene.remove(e); enemies.splice(i, 1); kills++; const k = document.getElementById('kills'); if (k) k.textContent = kills; sfxCollect(); }
           }
         }
@@ -2114,6 +2387,24 @@
         document.getElementById('biome').textContent = biome;
         _qAcc += dt; if (_qAcc > 0.5) { _qAcc = 0; renderQuests(); }
 
+        // golden keys: spin, bob, collect
+        for (let i = 0; i < keysArr.length; i++) {
+          const k = keysArr[i]; if (k.got) continue;
+          k.mesh.rotation.y += dt * 2.2; k.mesh.position.y = k.baseY + Math.sin(t * 2 + i) * 0.2;
+          if (Math.hypot(player.position.x - k.mesh.position.x, player.position.z - k.mesh.position.z) < 2.2 && Math.abs(player.position.y - k.mesh.position.y) < 3) {
+            k.got = true; k.mesh.visible = false; keysHeld++; updateTreasureHUD(); sfxCollect(); toast('🔑 Found a golden key!');
+          }
+        }
+        // chests: ease the lid open, and show the "press E" prompt when near a closed one
+        let nearChest = false;
+        for (let i = 0; i < chests.length; i++) {
+          const c = chests[i]; const target = c.opened ? 1 : 0;
+          c.openAmt += (target - c.openAmt) * Math.min(1, dt * 7); c.lid.rotation.x = -c.openAmt * 2.1;
+          if (!c.opened && mode === 'fps' && Math.hypot(player.position.x - c.x, player.position.z - c.z) < 3.2) nearChest = true;
+        }
+        const cp = document.getElementById('chestPrompt');
+        if (cp) { if (nearChest) { cp.classList.remove('hidden'); cp.innerHTML = keysHeld > 0 ? '🔑 Press <kbd>E</kbd> to open chest' : '🔒 Locked — find a golden key'; } else cp.classList.add('hidden'); }
+
         // keep sun shadow centered on the active focus, and widen its frustum when zoomed out in god mode
         const fX = mode === 'god' ? godTarget.x : player.position.x, fY = mode === 'god' ? godTarget.y : player.position.y, fZ = mode === 'god' ? godTarget.z : player.position.z;
         sun.position.set(fX + 80, fY + 150, fZ + 50);
@@ -2122,6 +2413,8 @@
         if (Math.abs(sun.shadow.camera.right - shHalf) > 0.5) { const sc2 = sun.shadow.camera; sc2.left = -shHalf; sc2.right = shHalf; sc2.top = shHalf; sc2.bottom = -shHalf; sc2.updateProjectionMatrix(); }
 
         updateEnemies(dt, t);
+        updateWildlife(dt, t);   // birds circle overhead; rabbits + deer roam and flee
+        updateLootFx(dt);        // loot icons fly from the chest to the player
         updateHouses(dt);   // open doors near the player, fade walls + light up when inside
         renderer.render(scene, mode === 'god' ? godCam : camera);
 
