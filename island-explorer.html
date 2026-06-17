@@ -1033,6 +1033,7 @@
                 <select id="sAiModel">
                   <option value="llama">Llama 3.1 8B (Fast, English)</option>
                   <option value="minimax">MiniMax M3 (Best for Hebrew)</option>
+                  <option value="diffusiongemma">DiffusionGemma 26B (Thinking)</option>
                 </select>
               </div>
             </div>
@@ -1972,12 +1973,31 @@
         const span = aiAppend('a', 'Sage', '…'); span.textContent = ''; aiBusy = true;
 
         const select = document.getElementById('sAiModel');
-        const isMinimax = select && select.value === 'minimax';
+        const modelVal = select ? select.value : 'llama';
 
-        const modelId = isMinimax ? 'minimaxai/minimax-m3' : 'meta/llama-3.1-8b-instruct';
-        const apiKey = isMinimax 
-          ? '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' 
-          : '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';
+        let modelId = 'meta/llama-3.1-8b-instruct';
+        let apiKey = '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';
+        let maxTokens = 512;
+        let requestBody = {
+          messages: [aiSysMsg(), ...aiHistory],
+          temperature: 1.0,
+          top_p: 0.95,
+          stream: false
+        };
+
+        if (modelVal === 'minimax') {
+          modelId = 'minimaxai/minimax-m3';
+          apiKey = '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';
+          maxTokens = 4096;
+        } else if (modelVal === 'diffusiongemma') {
+          modelId = 'google/diffusiongemma-26b-a4b-it';
+          apiKey = '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';
+          maxTokens = 4096;
+          requestBody.chat_template_kwargs = { "enable_thinking": true };
+        }
+
+        requestBody.model = modelId;
+        requestBody.max_tokens = maxTokens;
 
         try {
           const res = await fetch(AI_URL, { 
@@ -1986,14 +2006,7 @@
               'Content-Type': 'application/json', 
               'Authorization': 'Bearer ' + apiKey 
             }, 
-            body: JSON.stringify({ 
-              model: modelId, 
-              messages: [aiSysMsg(), ...aiHistory], 
-              temperature: 1.0, 
-              top_p: 0.95, 
-              max_tokens: isMinimax ? 4096 : 512, 
-              stream: false 
-            }) 
+            body: JSON.stringify(requestBody)
           });
           if (!res.ok) { span.textContent = '(Sage is silent — API error ' + res.status + ')'; return; }
           const j = await res.json();
