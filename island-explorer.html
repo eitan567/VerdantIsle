@@ -1587,14 +1587,24 @@
          ============================================================ */
       const keys = {};
       let view = 'first';   // 'first' = FPS, 'third' = third-person (toggle with T while exploring)
+      let paused = false;   // true while a blocking menu (Main menu / Settings / Inventory) is open -> freeze the world
+      let started = false;  // true once the player has entered the world at least once
+      const _PMIDS = ['pauseMenu', 'settingsModal', 'inv'];
+      function anyOverlayOpen() { return _PMIDS.some(id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); }); }
+      function syncPause() { paused = anyOverlayOpen(); if (paused && document.exitPointerLock) document.exitPointerLock(); }
+      function _hideOverlays() { _PMIDS.forEach(id => { const e = document.getElementById(id); if (e) e.classList.add('hidden'); }); }
+      function showPauseMenu() { _hideOverlays(); document.getElementById('pauseMenu').classList.remove('hidden'); syncPause(); }
+      function openSettingsPanel() { _hideOverlays(); document.getElementById('settingsModal').classList.remove('hidden'); syncPause(); }
+      function openInvPanel() { _hideOverlays(); document.getElementById('inv').classList.remove('hidden'); renderInv(); syncPause(); }
+      function resumePlay() { _hideOverlays(); syncPause(); const c = document.getElementById('c'); if (c && c.requestPointerLock) c.requestPointerLock(); }
       const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); };
       addEventListener('keydown', e => { if (typing()) return; keys[e.code] = true; if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first'); if (e.code === 'KeyE' && mode === 'fps') tryOpenChest(); if (e.code === 'KeyI') toggleInv(); });
-      function toggleInv() { const p = document.getElementById('inv'); p.classList.toggle('hidden'); if (!p.classList.contains('hidden')) { if (document.exitPointerLock) document.exitPointerLock(); renderInv(); } }
+      function toggleInv() { const p = document.getElementById('inv'); p.classList.toggle('hidden'); if (!p.classList.contains('hidden')) renderInv(); syncPause(); }
       window.addEventListener('load', () => {
         const ib = document.getElementById('invBtn'), ip = document.getElementById('inv'), ic = document.getElementById('invClose');
         if (ib) ib.addEventListener('click', toggleInv);
-        if (ic) ic.addEventListener('click', () => ip.classList.add('hidden'));
-        if (ip) ip.addEventListener('click', e => { if (e.target === ip) ip.classList.add('hidden'); });
+        if (ic) ic.addEventListener('click', () => { ip.classList.add('hidden'); syncPause(); });
+        if (ip) ip.addEventListener('click', e => { if (e.target === ip) { ip.classList.add('hidden'); syncPause(); } });
       });
       addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -1728,8 +1738,17 @@
 
       document.getElementById('play').addEventListener('click', () => { startMusic(); canvas.requestPointerLock(); });
       // click the scene to (re)grab the mouse; releasing with Esc keeps the world visible so you can tune the sliders live
-      canvas.addEventListener('click', () => { startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { canvas.requestPointerLock(); } else { attack(); } });
-      document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; if (locked) overlay.classList.add('hide'); });
+      canvas.addEventListener('click', () => { if (paused) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { canvas.requestPointerLock(); } else { attack(); } });
+      document.addEventListener('pointerlockchange', () => {
+        locked = document.pointerLockElement === canvas;
+        if (locked) {
+          overlay.classList.add('hide');
+          overlay.addEventListener('transitionend', function handler() {
+            overlay.style.display = 'none';
+            overlay.removeEventListener('transitionend', handler);
+          });
+        }
+      });
 
       /* ============================================================
          GOD / BUILDER MODE  (top-down strategy camera + placeable props)
@@ -2245,6 +2264,8 @@
         const dt = Math.min(clock.getDelta(), 0.05);
         const t = clock.elapsedTime;
 
+        if (paused) { renderer.render(scene, mode === 'god' ? godCam : camera); return; }   // menu open: freeze the world, keep showing it
+
         // god / builder camera takes over when active
         if (mode === 'god') updateGod(dt);
 
@@ -2453,19 +2474,26 @@
         }
         ids.forEach(k => S[k].addEventListener('input', apply));
         try { const v = JSON.parse(localStorage.getItem('vi_look')); if (v && v.length === 6) ids.forEach((k, i) => S[k].value = v[i]); } catch (e) { }
-        $('gear').addEventListener('click', () => $('settingsModal').classList.toggle('hidden'));
-        $('settingsClose').addEventListener('click', () => $('settingsModal').classList.add('hidden'));
-        $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) $('settingsModal').classList.add('hidden'); });
+        $('gear').addEventListener('click', () => { $('settingsModal').classList.toggle('hidden'); syncPause(); });
+        $('settingsClose').addEventListener('click', () => { $('settingsModal').classList.add('hidden'); syncPause(); });
+        $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) { $('settingsModal').classList.add('hidden'); syncPause(); } });
+        document.querySelector('#settingsModal .modalCard').addEventListener('click', e => { e.stopPropagation(); });
         $('sMusic').addEventListener('click', () => { startMusic(); setMusic(!musicOn); });
         $('sVol').addEventListener('input', () => { const v = +$('sVol').value; $('vVol').textContent = v + '%'; setVolume(v / 100); });
         $('sSaveB').addEventListener('click', saveBuild);
         $('sLoadB').addEventListener('click', loadBuild);
-        document.querySelectorAll('#classicTrees input[data-ck]').forEach(cb => cb.addEventListener('change', () => {
-          const id = cb.dataset.ck, ck = CLASSIC_KINDS.find(k => k.id === id);
-          if (cb.checked) { if (!TREE_KINDS.find(k => k.id === id)) TREE_KINDS.push(ck); }
-          else { const i = TREE_KINDS.findIndex(k => k.id === id); if (i >= 0) TREE_KINDS.splice(i, 1); }
-          rebuildTreebar();
-        }));
+        document.querySelectorAll('#classicTrees input[data-ck]').forEach(cb => {
+          cb.addEventListener('click', e => { e.stopPropagation(); });
+          cb.addEventListener('change', () => {
+            const id = cb.dataset.ck, ck = CLASSIC_KINDS.find(k => k.id === id);
+            if (cb.checked) { if (!TREE_KINDS.find(k => k.id === id)) TREE_KINDS.push(ck); }
+            else { const i = TREE_KINDS.findIndex(k => k.id === id); if (i >= 0) TREE_KINDS.splice(i, 1); }
+            rebuildTreebar();
+          });
+        });
+        document.querySelectorAll('#classicTrees label').forEach(lbl => {
+          lbl.addEventListener('click', e => { e.stopPropagation(); });
+        });
         $('sReset').addEventListener('click', () => { ids.forEach((k, i) => S[k].value = DEF[i]); apply(); });
         let dusk = false;
         $('sApply').addEventListener('click', () => {
