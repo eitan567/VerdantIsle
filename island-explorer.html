@@ -613,6 +613,23 @@
       height: 16px;
     }
 
+    #sliders select {
+      width: 100%;
+      background: rgba(8, 16, 28, .65);
+      border: 1px solid rgba(255, 255, 255, .16);
+      color: #bfe9d6;
+      border-radius: 8px;
+      padding: 6px;
+      font: inherit;
+      font-size: 12px;
+      margin-top: 4px;
+      outline: none;
+      cursor: pointer;
+    }
+    #sliders select:hover {
+      border-color: rgba(255, 255, 255, .25);
+    }
+
     #sliders .btns {
       display: flex;
       gap: 8px;
@@ -1011,6 +1028,13 @@
               <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
                   max="100" value="90"></div>
               <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
+              <div class="setSec">AI Spirit Model</div>
+              <div class="row">
+                <select id="sAiModel">
+                  <option value="llama">Llama 3.1 8B (Fast, English)</option>
+                  <option value="minimax">MiniMax M3 (Best for Hebrew)</option>
+                </select>
+              </div>
             </div>
             <div class="setCol">
               <div class="setSec">Lighting</div>
@@ -1863,7 +1887,7 @@
       function openSettingsPanel() { _hideOverlays(); document.getElementById('settingsModal').classList.remove('hidden'); syncPause(); }
       function openInvPanel() { _hideOverlays(); document.getElementById('inv').classList.remove('hidden'); renderInv(); syncPause(); }
       function resumePlay() { _hideOverlays(); syncPause(); const c = document.getElementById('c'); if (c && c.requestPointerLock) c.requestPointerLock(); }
-      const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); };
+      const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'); };
       addEventListener('keydown', e => { if (typing()) return; keys[e.code] = true; if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first'); if (e.code === 'KeyE' && mode === 'fps') tryOpenChest(); if (e.code === 'KeyI') toggleInv(); });
       function toggleInv() { const p = document.getElementById('inv'); p.classList.toggle('hidden'); if (!p.classList.contains('hidden')) renderInv(); syncPause(); }
       window.addEventListener('load', () => {
@@ -1946,8 +1970,31 @@
         const q = aiInput.value.trim(); if (!q || aiBusy) return; aiInput.value = '';
         aiAppend('u', 'You', q); aiHistory.push({ role: 'user', content: q });
         const span = aiAppend('a', 'Sage', '…'); span.textContent = ''; aiBusy = true;
+
+        const select = document.getElementById('sAiModel');
+        const isMinimax = select && select.value === 'minimax';
+
+        const modelId = isMinimax ? 'minimaxai/minimax-m3' : 'meta/llama-3.1-8b-instruct';
+        const apiKey = isMinimax 
+          ? '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' 
+          : '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';
+
         try {
-          const res = await fetch(AI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_KEY }, body: JSON.stringify({ model: AI_MODEL, messages: [aiSysMsg(), ...aiHistory], temperature: 1, top_p: 0.95, max_tokens: 512, stream: false }) });
+          const res = await fetch(AI_URL, { 
+            method: 'POST', 
+            headers: { 
+              'Content-Type': 'application/json', 
+              'Authorization': 'Bearer ' + apiKey 
+            }, 
+            body: JSON.stringify({ 
+              model: modelId, 
+              messages: [aiSysMsg(), ...aiHistory], 
+              temperature: 1.0, 
+              top_p: 0.95, 
+              max_tokens: isMinimax ? 4096 : 512, 
+              stream: false 
+            }) 
+          });
           if (!res.ok) { span.textContent = '(Sage is silent — API error ' + res.status + ')'; return; }
           const j = await res.json();
           const acc = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
