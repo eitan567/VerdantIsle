@@ -174,67 +174,304 @@
 
     /* AI "island spirit" chat */
     #aiBtn {
-      position: absolute; top: 13px; left: 260px; width: 40px; height: 40px;
-      pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 19px; color: #bfe9d6; background: rgba(8, 16, 28, .55);
-      border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; backdrop-filter: blur(8px); z-index: 30;
+      position: absolute;
+      top: 13px;
+      left: 260px;
+      width: 40px;
+      height: 40px;
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      color: #bfe9d6;
+      background: rgba(8, 16, 28, .55);
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      z-index: 30;
     }
-    #aiBtn:hover { color: #fff; background: rgba(8, 16, 28, .8); }
+
+    #aiBtn:hover {
+      color: #fff;
+      background: rgba(8, 16, 28, .8);
+    }
+
     #aiChat {
-      position: fixed; right: 18px; bottom: 72px; width: 360px; max-height: 60vh;
-      display: flex; flex-direction: column; background: rgba(8, 16, 28, .9);
-      border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; backdrop-filter: blur(10px);
-      z-index: 40; pointer-events: auto; overflow: hidden; color: #e9f3ee;
+      position: fixed;
+      right: 18px;
+      bottom: 72px;
+      width: 360px;
+      max-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      background: rgba(8, 16, 28, .9);
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      z-index: 40;
+      pointer-events: auto;
+      overflow: hidden;
+      color: #e9f3ee;
     }
-    #aiChat.hidden { display: none; }
-    #aiHead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255, 255, 255, .06); font-weight: 700; font-size: 14px; }
-    #aiHead button { background: none; border: none; color: #bfe9d6; cursor: pointer; font-size: 16px; }
-    #aiLog { padding: 10px 12px; overflow-y: auto; flex: 1; font-size: 13px; line-height: 1.45; min-height: 80px; }
-    #aiLog .u { color: #bfe9d6; margin: 7px 0; }
-    #aiLog .a { color: #f2e6c8; margin: 7px 0; white-space: pre-wrap; }
-    #aiLog .who { font-weight: 700; opacity: .85; }
-    #aiInputRow { display: flex; gap: 6px; padding: 10px; border-top: 1px solid rgba(255, 255, 255, .1); }
-    #aiInput { flex: 1; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); border-radius: 8px; color: #fff; padding: 8px; font-size: 13px; outline: none; }
-    #aiSend { background: #2e6f57; border: none; border-radius: 8px; color: #fff; padding: 8px 12px; cursor: pointer; font-weight: 700; }
-    #aiSend:hover { background: #388a6b; }
+
+    #aiChat.hidden {
+      display: none;
+    }
+
+    #aiHead {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, .06);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    #aiHead button {
+      background: none;
+      border: none;
+      color: #bfe9d6;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    #aiLog {
+      padding: 10px 12px;
+      overflow-y: auto;
+      flex: 1;
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 80px;
+    }
+
+    #aiLog .u {
+      color: #bfe9d6;
+      margin: 7px 0;
+    }
+
+    #aiLog .a {
+      color: #f2e6c8;
+      margin: 7px 0;
+      white-space: pre-wrap;
+    }
+
+    #aiLog .who {
+      font-weight: 700;
+      opacity: .85;
+    }
+
+    #aiInputRow {
+      display: flex;
+      gap: 6px;
+      padding: 10px;
+      border-top: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    #aiInput {
+      flex: 1;
+      background: rgba(255, 255, 255, .08);
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 8px;
+      color: #fff;
+      padding: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    #aiSend {
+      background: #2e6f57;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    #aiSend:hover {
+      background: #388a6b;
+    }
 
     /* treasure toast + chest prompt */
     #toast {
-      position: fixed; top: 84px; left: 50%; transform: translateX(-50%) translateY(-10px);
-      background: rgba(20, 14, 4, .9); color: #ffe9a8; border: 1px solid rgba(255, 207, 58, .5);
-      padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 45;
-      opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; max-width: 70vw; text-align: center;
+      position: fixed;
+      top: 84px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      background: rgba(20, 14, 4, .9);
+      color: #ffe9a8;
+      border: 1px solid rgba(255, 207, 58, .5);
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 45;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s, transform .3s;
+      max-width: 70vw;
+      text-align: center;
     }
-    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     #chestPrompt {
-      position: fixed; bottom: 116px; left: 50%; transform: translateX(-50%);
-      background: rgba(8, 16, 28, .8); color: #ffe9a8; border: 1px solid rgba(255, 255, 255, .18);
-      padding: 7px 14px; border-radius: 10px; font-size: 13px; z-index: 35; pointer-events: none;
+      position: fixed;
+      bottom: 116px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(8, 16, 28, .8);
+      color: #ffe9a8;
+      border: 1px solid rgba(255, 255, 255, .18);
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      z-index: 35;
+      pointer-events: none;
     }
-    #chestPrompt.hidden { display: none; }
+
+    #chestPrompt.hidden {
+      display: none;
+    }
 
     /* inventory */
     #invBtn {
-      position: absolute; top: 13px; left: 308px; width: 40px; height: 40px;
-      pointer-events: auto; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 19px; color: #bfe9d6; background: rgba(8, 16, 28, .55);
-      border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; backdrop-filter: blur(8px); z-index: 30;
+      position: absolute;
+      top: 13px;
+      left: 308px;
+      width: 40px;
+      height: 40px;
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      color: #bfe9d6;
+      background: rgba(8, 16, 28, .55);
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      z-index: 30;
     }
-    #invBtn:hover { color: #fff; background: rgba(8, 16, 28, .8); }
-    #inv { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); z-index: 50; pointer-events: auto; }
-    #inv.hidden { display: none; }
-    .invCard { background: rgba(12, 20, 30, .96); border: 1px solid rgba(255, 255, 255, .16); border-radius: 16px; padding: 16px; width: 380px; max-width: 90vw; color: #e9f3ee; }
-    .invHead { display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 12px; }
-    .invHead button { background: none; border: none; color: #bfe9d6; cursor: pointer; font-size: 16px; }
-    #invGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; min-height: 90px; }
-    .invSlot { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; padding: 4px; }
-    .invSlot:hover { background: rgba(255, 255, 255, .12); }
-    .invSlot.eq { border-color: #ffcf3a; box-shadow: 0 0 0 1px #ffcf3a inset; }
-    .invSlot .ic { font-size: 26px; }
-    .invSlot .nm { font-size: 9px; opacity: .82; text-align: center; margin-top: 2px; line-height: 1.1; }
-    .invSlot .ct { position: absolute; top: 3px; right: 5px; font-size: 11px; font-weight: 700; color: #ffe9a8; }
-    .invEmpty { grid-column: 1 / -1; opacity: .65; font-size: 13px; text-align: center; padding: 16px; }
-    #invHint { margin-top: 12px; font-size: 11px; opacity: .6; text-align: center; }
+
+    #invBtn:hover {
+      color: #fff;
+      background: rgba(8, 16, 28, .8);
+    }
+
+    #inv {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, .45);
+      z-index: 50;
+      pointer-events: auto;
+    }
+
+    #inv.hidden {
+      display: none;
+    }
+
+    .invCard {
+      background: rgba(12, 20, 30, .96);
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 16px;
+      padding: 16px;
+      width: 380px;
+      max-width: 90vw;
+      color: #e9f3ee;
+    }
+
+    .invHead {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .invHead button {
+      background: none;
+      border: none;
+      color: #bfe9d6;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    #invGrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      min-height: 90px;
+    }
+
+    .invSlot {
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 12px;
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      padding: 4px;
+    }
+
+    .invSlot:hover {
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .invSlot.eq {
+      border-color: #ffcf3a;
+      box-shadow: 0 0 0 1px #ffcf3a inset;
+    }
+
+    .invSlot .ic {
+      font-size: 26px;
+    }
+
+    .invSlot .nm {
+      font-size: 9px;
+      opacity: .82;
+      text-align: center;
+      margin-top: 2px;
+      line-height: 1.1;
+    }
+
+    .invSlot .ct {
+      position: absolute;
+      top: 3px;
+      right: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffe9a8;
+    }
+
+    .invEmpty {
+      grid-column: 1 / -1;
+      opacity: .65;
+      font-size: 13px;
+      text-align: center;
+      padding: 16px;
+    }
+
+    #invHint {
+      margin-top: 12px;
+      font-size: 11px;
+      opacity: .6;
+      text-align: center;
+    }
 
     /* settings as a centred modal dialog */
     #settingsModal {
@@ -694,8 +931,11 @@
     <div class="panel" id="quests"></div>
     <div id="modeTag">EXPLORE</div>
     <div class="panel" id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> sprint ·
-      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>T</kbd> view · <kbd>G</kbd> build · <kbd>Esc</kbd> release</div>
-    <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b> &nbsp; 🔑 <b id="keysNum">0</b> &nbsp; 🪙 <b id="goldNum">0</b> &nbsp; 🗡 <b id="eqW">Fists</b></div>
+      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>T</kbd> view ·
+      <kbd>G</kbd> build · <kbd>Esc</kbd> release
+    </div>
+    <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b> &nbsp; 🔑 <b id="keysNum">0</b>
+      &nbsp; 🪙 <b id="goldNum">0</b> &nbsp; 🗡 <b id="eqW">Fists</b></div>
     <div id="toast"></div>
     <div id="chestPrompt" class="hidden">🔑 Press <kbd>E</kbd> to open chest</div>
 
@@ -742,18 +982,25 @@
           <div class="setCols">
             <div class="setCol">
               <div class="setSec">Display</div>
-              <div class="row"><label>Color depth <b id="vSat">115%</b></label><input type="range" id="sSat" min="50" max="220" value="115"></div>
-              <div class="row"><label>Contrast <b id="vCon">105%</b></label><input type="range" id="sCon" min="80" max="160" value="105"></div>
-              <div class="row"><label>Brightness <b id="vBri">100%</b></label><input type="range" id="sBri" min="60" max="140" value="100"></div>
+              <div class="row"><label>Color depth <b id="vSat">115%</b></label><input type="range" id="sSat" min="50"
+                  max="220" value="115"></div>
+              <div class="row"><label>Contrast <b id="vCon">105%</b></label><input type="range" id="sCon" min="80"
+                  max="160" value="105"></div>
+              <div class="row"><label>Brightness <b id="vBri">100%</b></label><input type="range" id="sBri" min="60"
+                  max="140" value="100"></div>
               <div class="setSec">Audio</div>
-              <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0" max="100" value="90"></div>
+              <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
+                  max="100" value="90"></div>
               <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
             </div>
             <div class="setCol">
               <div class="setSec">Lighting</div>
-              <div class="row"><label>Sun strength <b id="vSun">1.40</b></label><input type="range" id="sSun" min="0" max="260" value="140"></div>
-              <div class="row"><label>Sun warmth <b id="vWar">50%</b></label><input type="range" id="sWar" min="0" max="100" value="50"></div>
-              <div class="row"><label>Sky fill <b id="vFil">50%</b></label><input type="range" id="sFil" min="0" max="160" value="50"></div>
+              <div class="row"><label>Sun strength <b id="vSun">1.40</b></label><input type="range" id="sSun" min="0"
+                  max="260" value="140"></div>
+              <div class="row"><label>Sun warmth <b id="vWar">50%</b></label><input type="range" id="sWar" min="0"
+                  max="100" value="50"></div>
+              <div class="row"><label>Sky fill <b id="vFil">50%</b></label><input type="range" id="sFil" min="0"
+                  max="160" value="50"></div>
               <div class="setSec">Classic tree types</div>
               <div id="classicTrees">
                 <label><input type="checkbox" data-ck="oak"> Oak</label>
@@ -1608,10 +1855,10 @@
       });
       addEventListener('keyup', e => { keys[e.code] = false; });
 
-      /* ---- AI "island spirit" chat (NVIDIA Nemotron, OpenAI-compatible streaming over fetch) ---- */
+      /* ---- AI "island spirit" chat (NVIDIA NIM, OpenAI-compatible via CORS proxy) ---- */
       const AI_KEY = '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';
-      const AI_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
-      const AI_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+      const AI_MODEL = 'meta/llama-3.1-8b-instruct';
+      const AI_URL = 'https://proxy.corsfix.com/?https://integrate.api.nvidia.com/v1/chat/completions';
       const aiChat = document.getElementById('aiChat'), aiLog = document.getElementById('aiLog'), aiInput = document.getElementById('aiInput');
       const aiHistory = []; let aiBusy = false;
       function aiSysMsg() {
@@ -1623,15 +1870,17 @@
         aiAppend('u', 'You', q); aiHistory.push({ role: 'user', content: q });
         const span = aiAppend('a', 'Sage', '…'); span.textContent = ''; aiBusy = true;
         try {
-          const res = await fetch(AI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_KEY }, body: JSON.stringify({ model: AI_MODEL, messages: [aiSysMsg(), ...aiHistory], temperature: 1, top_p: 0.95, max_tokens: 1024, stream: true }) });
+          const res = await fetch(AI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_KEY }, body: JSON.stringify({ model: AI_MODEL, messages: [aiSysMsg(), ...aiHistory], temperature: 1, top_p: 0.95, max_tokens: 512, stream: false }) });
           if (!res.ok) { span.textContent = '(Sage is silent — API error ' + res.status + ')'; return; }
-          const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', acc = '';
-          while (true) {
-            const { value, done } = await reader.read(); if (done) break;
-            buf += dec.decode(value, { stream: true }); const lines = buf.split('\n'); buf = lines.pop();
-            for (const ln of lines) { const l = ln.trim(); if (!l.startsWith('data:')) continue; const d = l.slice(5).trim(); if (d === '[DONE]') { buf = ''; break; } try { const j = JSON.parse(d); const tok = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content; if (tok) { acc += tok; span.textContent = acc; aiLog.scrollTop = aiLog.scrollHeight; } } catch (_) { } }
+          const j = await res.json();
+          const acc = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+          if (acc) {
+            span.textContent = acc;
+            aiLog.scrollTop = aiLog.scrollHeight;
+            aiHistory.push({ role: 'assistant', content: acc });
+          } else {
+            span.textContent = '(Sage is silent — unexpected API response)';
           }
-          aiHistory.push({ role: 'assistant', content: acc || '...' });
         } catch (err) { span.textContent = '(Could not reach Sage. The NVIDIA endpoint may block direct browser calls (CORS) — a small local proxy would be needed.)'; }
         finally { aiBusy = false; }
       }
