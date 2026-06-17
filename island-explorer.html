@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verdant Isle — 3D Open World</title>
+  <script src="https://js.puter.com/v2/"></script>
   <style>
     * {
       margin: 0;
@@ -198,12 +199,19 @@
       background: rgba(8, 16, 28, .8);
     }
 
+    .ai-tts { display: inline-block; cursor: pointer; background: none; border: none; font-size: 14px; margin-left: 6px; opacity: .55; transition: opacity .2s; vertical-align: middle; padding: 0; }
+    .ai-tts:hover { opacity: 1; }
+    .ai-tts.speaking { opacity: 1; animation: tts-pulse 0.8s ease-in-out infinite alternate; }
+    @keyframes tts-pulse { from { transform: scale(1); } to { transform: scale(1.25); } }
+    #aiAutoTts { cursor: pointer; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 6px; color: #8fa3b8; font-size: 13px; padding: 2px 6px; margin-right: 4px; transition: color .2s, border-color .2s; }
+    #aiAutoTts.on { color: #7fe7c4; border-color: rgba(127,231,196,.4); }
+
     #aiChat {
       position: fixed;
-      right: 18px;
-      bottom: 72px;
+      left: 14px;
+      bottom: 112px;
       width: 360px;
-      max-height: 60vh;
+      height: 300px;
       display: flex;
       flex-direction: column;
       background: rgba(8, 16, 28, .9);
@@ -228,6 +236,8 @@
       background: rgba(255, 255, 255, .06);
       font-weight: 700;
       font-size: 14px;
+      cursor: move;
+      user-select: none;
     }
 
     #aiHead button {
@@ -261,6 +271,15 @@
     #aiLog .who {
       font-weight: 700;
       opacity: .85;
+    }
+
+    #aiLog .hebrew-rtl {
+      direction: rtl;
+      text-align: right;
+    }
+    #aiLog .hebrew-rtl .ai-tts {
+      margin-left: 0;
+      margin-right: 6px;
     }
 
     #aiInputRow {
@@ -967,7 +986,7 @@
     <div id="aiBtn" title="Talk to the island spirit">💬</div>
 
     <div id="aiChat" class="hidden">
-      <div id="aiHead"><span>🔮 Sage — island spirit</span><button id="aiClose">✕</button></div>
+      <div id="aiHead"><span>🔮 Sage — island spirit</span><span><button id="aiAutoTts" title="Auto-read responses">🔇</button><button id="aiClose">✕</button></span></div>
       <div id="aiLog"></div>
       <div id="aiInputRow">
         <input id="aiInput" type="text" placeholder="Ask Sage anything…" autocomplete="off">
@@ -1864,7 +1883,65 @@
       function aiSysMsg() {
         return { role: 'system', content: 'You are Sage, the warm, wise and slightly playful spirit of Verdant Isle — a low-poly 3D island in a browser game. Stay in character and keep replies short (1-3 small paragraphs). The player explores in first or third person (press T to switch), collects glowing crystals, plants trees, builds with build mode (press G), and fights slime monsters by clicking. Live state -> crystals: ' + score + '/' + crystals.length + ', slimes defeated: ' + kills + ', health: ' + Math.round(playerHP) + ', biome: ' + currentBiome + '. Offer hints, lore and encouragement. You may also answer off-topic questions helpfully, still in character.' };
       }
-      function aiAppend(cls, who, text) { const d = document.createElement('div'); d.className = cls; const w = document.createElement('span'); w.className = 'who'; w.textContent = who + ': '; const s = document.createElement('span'); s.textContent = text; d.appendChild(w); d.appendChild(s); aiLog.appendChild(d); aiLog.scrollTop = aiLog.scrollHeight; return s; }
+      /* ---- TTS (Puter.js Neural TTS) ---- */
+      let aiAutoTts = false;
+      let currentAudio = null;
+      let currentBtn = null;
+      function speakText(text, btn) {
+        if (!window.puter) {
+          console.warn("Puter.js is not loaded.");
+          return;
+        }
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+          if (currentBtn) currentBtn.classList.remove('speaking');
+          if (currentBtn === btn) {
+            currentBtn = null;
+            return;
+          }
+        }
+        if (btn) {
+          btn.classList.add('speaking');
+          currentBtn = btn;
+        }
+        puter.ai.txt2speech(text, { provider: "openai", model: "tts-1", voice: "nova" })
+          .then((audio) => {
+            currentAudio = audio;
+            audio.addEventListener('ended', () => {
+              if (btn) btn.classList.remove('speaking');
+              if (currentBtn === btn) currentBtn = null;
+              currentAudio = null;
+            });
+            audio.addEventListener('pause', () => {
+              if (btn) btn.classList.remove('speaking');
+            });
+            audio.play().catch(e => {
+              console.error("Audio play error", e);
+              if (btn) btn.classList.remove('speaking');
+            });
+          })
+          .catch((err) => {
+            console.error("Puter TTS Error:", err);
+            if (btn) btn.classList.remove('speaking');
+            if (currentBtn === btn) currentBtn = null;
+          });
+      }
+      function aiAppend(cls, who, text) {
+        const d = document.createElement('div'); d.className = cls;
+        if (/[\u0590-\u05FF]/.test(text)) {
+          d.classList.add('hebrew-rtl');
+        }
+        const w = document.createElement('span'); w.className = 'who'; w.textContent = who + ': ';
+        const s = document.createElement('span'); s.textContent = text;
+        d.appendChild(w); d.appendChild(s);
+        if (cls === 'a') {
+          const btn = document.createElement('button'); btn.className = 'ai-tts'; btn.textContent = '🔊'; btn.title = 'Read aloud';
+          btn.addEventListener('click', () => speakText(s.textContent, btn));
+          d.appendChild(btn); d._ttsBtn = btn;
+        }
+        aiLog.appendChild(d); aiLog.scrollTop = aiLog.scrollHeight; return s;
+      }
       async function aiSend() {
         const q = aiInput.value.trim(); if (!q || aiBusy) return; aiInput.value = '';
         aiAppend('u', 'You', q); aiHistory.push({ role: 'user', content: q });
@@ -1876,8 +1953,12 @@
           const acc = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
           if (acc) {
             span.textContent = acc;
+            if (/[\u0590-\u05FF]/.test(acc)) {
+              span.parentElement.classList.add('hebrew-rtl');
+            }
             aiLog.scrollTop = aiLog.scrollHeight;
             aiHistory.push({ role: 'assistant', content: acc });
+            if (aiAutoTts) { const ttsBtn = span.parentElement._ttsBtn; speakText(acc, ttsBtn); }
           } else {
             span.textContent = '(Sage is silent — unexpected API response)';
           }
@@ -1889,9 +1970,75 @@
         if (!aiLog.dataset.greeted) { aiAppend('a', 'Sage', 'Greetings, wanderer. I am Sage, spirit of Verdant Isle. Ask me for hints, lore, or where the crystals hide.'); aiLog.dataset.greeted = '1'; }
         setTimeout(() => aiInput.focus(), 50);
       });
-      document.getElementById('aiClose').addEventListener('click', () => aiChat.classList.add('hidden'));
+      document.getElementById('aiClose').addEventListener('click', () => {
+        aiChat.classList.add('hidden');
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+        if (currentBtn) { currentBtn.classList.remove('speaking'); currentBtn = null; }
+      });
+      document.getElementById('aiAutoTts').addEventListener('click', () => {
+        aiAutoTts = !aiAutoTts;
+        const b = document.getElementById('aiAutoTts');
+        b.textContent = aiAutoTts ? '🔊' : '🔇';
+        b.classList.toggle('on', aiAutoTts);
+        if (!aiAutoTts && currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+          if (currentBtn) { currentBtn.classList.remove('speaking'); currentBtn = null; }
+        }
+      });
       document.getElementById('aiSend').addEventListener('click', aiSend);
       aiInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); aiSend(); } });
+
+      // Prevent clicks/drags in the chat from leaking to the canvas/gameplay
+      aiChat.addEventListener('mousedown', e => { e.stopPropagation(); });
+      aiChat.addEventListener('click', e => { e.stopPropagation(); });
+
+      // Chat window dragging logic
+      const aiHead = document.getElementById('aiHead');
+      let isDragging = false;
+      let startX, startY, initialLeft, initialTop;
+
+      aiHead.addEventListener('mousedown', e => {
+        if (e.target.closest('button')) return;
+        isDragging = true;
+        if (document.exitPointerLock) document.exitPointerLock();
+
+        const rect = aiChat.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        startX = e.clientX;
+        startY = e.clientY;
+
+        aiChat.style.bottom = 'auto';
+        aiChat.style.left = initialLeft + 'px';
+        aiChat.style.top = initialTop + 'px';
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        e.preventDefault();
+      });
+
+      function onMouseMove(e) {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        newLeft = Math.max(0, Math.min(window.innerWidth - aiChat.offsetWidth, newLeft));
+        newTop = Math.max(0, Math.min(window.innerHeight - aiChat.offsetHeight, newTop));
+
+        aiChat.style.left = newLeft + 'px';
+        aiChat.style.top = newTop + 'px';
+      }
+
+      function onMouseUp() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
       let pitch = 0, yaw = 0, locked = false;
       document.addEventListener('mousemove', e => { if (!locked) return; yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022; pitch = Math.max(-1.3, Math.min(1.3, pitch)); });
       const overlay = document.getElementById('overlay');
