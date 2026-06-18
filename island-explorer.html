@@ -35,6 +35,16 @@
       pointer-events: none;
       color: #fff;
       display: none;
+      z-index: 25;
+    }
+
+    body.paused #crosshair,
+    body.paused #score,
+    body.paused #quests,
+    body.paused #combat,
+    body.paused #help,
+    body.paused #modeTag {
+      display: none !important;
     }
 
     #crosshair {
@@ -1344,8 +1354,8 @@
     <div class="panel" id="quests"></div>
     <div id="modeTag">EXPLORE</div>
     <div class="panel" id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> sprint ·
-      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>T</kbd> view ·
-      <kbd>G</kbd> build · <kbd>Esc</kbd> release
+      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>C</kbd> chat · <kbd>O</kbd> settings · <kbd>T</kbd> view ·
+      <kbd>G</kbd> build · <kbd>Esc</kbd> pause
     </div>
     <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b> &nbsp; 🔑 <b id="keysNum">0</b>
       &nbsp; 🪙 <b id="goldNum">0</b> &nbsp; 🗡 <b id="eqW">Fists</b></div>
@@ -1376,8 +1386,8 @@
     </div>
     <div id="treebar" class="hidden"><span class="tlbl">Tree type — <kbd>,</kbd><kbd>.</kbd> cycle</span></div>
 
-    <div id="gear" title="Settings">⚙</div>
-    <div id="aiBtn" title="Talk to the island spirit">💬</div>
+    <div id="gear" title="Settings (O)">⚙</div>
+    <div id="aiBtn" title="Talk to the island spirit (C)">💬</div>
 
     <div id="aiChat" class="hidden">
       <div id="aiHead"><span>🔮 Sage — island spirit</span><span><button id="aiAutoTts"
@@ -1520,6 +1530,14 @@
             <span class="key-label">Toggle Inventory bag panel</span>
           </div>
           <div class="help-item">
+            <span class="key-tag">C</span>
+            <span class="key-label">Toggle Chat panel / Speak with spirit</span>
+          </div>
+          <div class="help-item">
+            <span class="key-tag">O</span>
+            <span class="key-label">Toggle Settings modal</span>
+          </div>
+          <div class="help-item">
             <span class="key-tag">G</span>
             <span class="key-label">Toggle God / Build mode</span>
           </div>
@@ -1551,6 +1569,12 @@
       <span class="sep-dot">|</span>
       <span class="key-tag">T</span>
       <span class="key-label">View</span>
+      <span class="sep-dot">|</span>
+      <span class="key-tag">C</span>
+      <span class="key-label">Chat</span>
+      <span class="sep-dot">|</span>
+      <span class="key-tag">O</span>
+      <span class="key-label">Settings</span>
     </div>
   </div>
 
@@ -2357,24 +2381,147 @@
       let paused = false;   // true while a blocking menu (Main menu / Settings / Inventory) is open -> freeze the world
       let started = false;  // true once the player has entered the world at least once
       let inMainMenu = true;
-      const _PMIDS = ['pauseMenu', 'settingsModal', 'inv'];
-      function anyOverlayOpen() { return _PMIDS.some(id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); }); }
-      function syncPause() { paused = anyOverlayOpen(); if (paused && document.exitPointerLock) document.exitPointerLock(); }
-      function _hideOverlays() { _PMIDS.forEach(id => { const e = document.getElementById(id); if (e) e.classList.add('hidden'); }); }
-      function showPauseMenu() { _hideOverlays(); document.getElementById('pauseMenu').classList.remove('hidden'); syncPause(); }
-      function openSettingsPanel() { _hideOverlays(); document.getElementById('settingsModal').classList.remove('hidden'); syncPause(); }
-      function openInvPanel() { _hideOverlays(); document.getElementById('inv').classList.remove('hidden'); renderInv(); syncPause(); }
-      function resumePlay() { _hideOverlays(); syncPause(); const c = document.getElementById('c'); if (c && c.requestPointerLock) c.requestPointerLock(); }
+      const _PMIDS = ['settingsModal', 'inv', 'aiChat'];
+
+      function setPausedState(val) {
+        paused = val;
+        if (paused) {
+          document.body.classList.add('paused');
+        } else {
+          document.body.classList.remove('paused');
+        }
+      }
+
+      function anyOverlayOpen() {
+        return _PMIDS.some(id => {
+          const e = document.getElementById(id);
+          return e && !e.classList.contains('hidden');
+        });
+      }
+
+      function syncPause() {
+        setPausedState(anyOverlayOpen());
+        if (paused && document.exitPointerLock) {
+          document.exitPointerLock();
+        }
+      }
+
+      function _hideOverlays() {
+        _PMIDS.forEach(id => {
+          const e = document.getElementById(id);
+          if (e) e.classList.add('hidden');
+        });
+      }
+
+      function openSettingsPanel() {
+        _hideOverlays();
+        document.getElementById('settingsModal').classList.remove('hidden');
+        if (!inMainMenu) {
+          overlay.classList.add('hide');
+          overlay.style.display = 'none';
+        }
+        syncPause();
+      }
+
+      function openInvPanel() {
+        _hideOverlays();
+        document.getElementById('inv').classList.remove('hidden');
+        overlay.classList.add('hide');
+        overlay.style.display = 'none';
+        renderInv();
+        syncPause();
+      }
+
+      function openChatPanel() {
+        _hideOverlays();
+        document.getElementById('aiChat').classList.remove('hidden');
+        overlay.classList.add('hide');
+        overlay.style.display = 'none';
+        syncPause();
+        if (!aiLog.dataset.greeted) {
+          aiAppend('a', 'Sage', 'Greetings, wanderer. I am Sage, spirit of Verdant Isle. Ask me for hints, lore, or where the crystals hide.');
+          aiLog.dataset.greeted = '1';
+        }
+        setTimeout(() => aiInput.focus(), 50);
+      }
+
+      let closingOverlay = false;
+      function resumeGame() {
+        if (inMainMenu) {
+          _hideOverlays();
+          overlay.classList.remove('hide');
+          overlay.style.display = 'flex';
+          setPausedState(true);
+        } else {
+          // In-game: request pointer lock.
+          // Note: The overlays will be hidden and the game unpaused automatically
+          // inside pointerlockchange once pointer lock is successfully acquired!
+          const c = document.getElementById('c');
+          if (c && c.requestPointerLock) {
+            c.requestPointerLock();
+          }
+        }
+      }
+
       const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'); };
-      addEventListener('keydown', e => { if (typing()) return; keys[e.code] = true; if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first'); if (e.code === 'KeyE' && mode === 'fps') tryOpenChest(); if (e.code === 'KeyI') toggleInv(); });
-      function toggleInv() { const p = document.getElementById('inv'); p.classList.toggle('hidden'); if (!p.classList.contains('hidden')) renderInv(); syncPause(); }
+
+      addEventListener('keydown', e => {
+        if (typing()) return;
+        keys[e.code] = true;
+        if (!inMainMenu) {
+          if (e.code === 'KeyT' && mode === 'fps') view = (view === 'first' ? 'third' : 'first');
+          if (e.code === 'KeyE' && mode === 'fps') tryOpenChest();
+          if (e.code === 'KeyI') toggleInv();
+          if (e.code === 'KeyC') toggleChat();
+          if (e.code === 'KeyO') toggleSettings();
+        }
+      });
+
+      function toggleInv() {
+        const p = document.getElementById('inv');
+        if (p.classList.contains('hidden')) {
+          openInvPanel();
+        } else {
+          resumeGame();
+        }
+      }
+
+      function toggleSettings() {
+        const p = document.getElementById('settingsModal');
+        if (p.classList.contains('hidden')) {
+          openSettingsPanel();
+        } else {
+          resumeGame();
+        }
+      }
+
+      function toggleChat() {
+        const p = document.getElementById('aiChat');
+        if (p.classList.contains('hidden')) {
+          openChatPanel();
+        } else {
+          resumeGame();
+        }
+      }
+
       window.addEventListener('load', () => {
         const ib = document.getElementById('invBtn'), ip = document.getElementById('inv'), ic = document.getElementById('invClose');
         if (ib) ib.addEventListener('click', toggleInv);
-        if (ic) ic.addEventListener('click', () => { ip.classList.add('hidden'); syncPause(); });
-        if (ip) ip.addEventListener('click', e => { if (e.target === ip) { ip.classList.add('hidden'); syncPause(); } });
+        if (ic) ic.addEventListener('click', resumeGame);
+        if (ip) ip.addEventListener('click', e => { if (e.target === ip) { resumeGame(); } });
       });
-      addEventListener('keyup', e => { keys[e.code] = false; });
+      addEventListener('keyup', e => {
+        keys[e.code] = false;
+        if (e.code === 'Escape') {
+          if (anyOverlayOpen()) {
+            e.preventDefault();
+            resumeGame();
+          } else if (!inMainMenu && overlay.style.display === 'flex' && !overlay.classList.contains('hide')) {
+            e.preventDefault();
+            resumeGame();
+          }
+        }
+      });
 
       /* ---- AI "island spirit" chat (NVIDIA NIM, OpenAI-compatible via CORS proxy) ---- */
       const AI_KEY = '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';
@@ -2502,13 +2649,9 @@
         } catch (err) { span.textContent = '(Could not reach Sage. The NVIDIA endpoint may block direct browser calls (CORS) — a small local proxy would be needed.)'; }
         finally { aiBusy = false; }
       }
-      document.getElementById('aiBtn').addEventListener('click', () => {
-        aiChat.classList.remove('hidden'); if (document.exitPointerLock) document.exitPointerLock();
-        if (!aiLog.dataset.greeted) { aiAppend('a', 'Sage', 'Greetings, wanderer. I am Sage, spirit of Verdant Isle. Ask me for hints, lore, or where the crystals hide.'); aiLog.dataset.greeted = '1'; }
-        setTimeout(() => aiInput.focus(), 50);
-      });
+      document.getElementById('aiBtn').addEventListener('click', toggleChat);
       document.getElementById('aiClose').addEventListener('click', () => {
-        aiChat.classList.add('hidden');
+        resumeGame();
         if (currentAudio) { currentAudio.pause(); currentAudio = null; }
         if (currentBtn) { currentBtn.classList.remove('speaking'); currentBtn = null; }
       });
@@ -2716,8 +2859,9 @@
           try { window.close(); } catch (err) { }
         }, 1000);
       });
-      // Continue Game
-      document.getElementById('btnContinue').addEventListener('click', () => {
+      document.getElementById('btnContinue').addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
         canvas.requestPointerLock();
       });
 
@@ -2797,22 +2941,24 @@
       document.addEventListener('pointerlockchange', () => {
         locked = document.pointerLockElement === canvas;
         if (locked) {
+          _hideOverlays();
           overlay.classList.add('hide');
           overlay.addEventListener('transitionend', function handler() {
             overlay.style.display = 'none';
             overlay.removeEventListener('transitionend', handler);
           });
           if (!inMainMenu) {
-            paused = false;
+            setPausedState(false);
           }
         } else {
           if (!inMainMenu) {
-            paused = true;
-            document.getElementById('startupButtons').classList.add('hidden-group');
-            document.getElementById('pausedButtons').classList.remove('hidden-group');
-            _hideOverlays();
-            overlay.classList.remove('hide');
-            overlay.style.display = 'flex';
+            setPausedState(true);
+            if (!anyOverlayOpen() && !closingOverlay) {
+              document.getElementById('startupButtons').classList.add('hidden-group');
+              document.getElementById('pausedButtons').classList.remove('hidden-group');
+              overlay.classList.remove('hide');
+              overlay.style.display = 'flex';
+            }
           }
         }
       });
@@ -3582,9 +3728,9 @@
         }
         ids.forEach(k => S[k].addEventListener('input', apply));
         try { const v = JSON.parse(localStorage.getItem('vi_look')); if (v && v.length === 6) ids.forEach((k, i) => S[k].value = v[i]); } catch (e) { }
-        $('gear').addEventListener('click', () => { $('settingsModal').classList.toggle('hidden'); syncPause(); });
-        $('settingsClose').addEventListener('click', () => { $('settingsModal').classList.add('hidden'); syncPause(); });
-        $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) { $('settingsModal').classList.add('hidden'); syncPause(); } });
+        $('gear').addEventListener('click', toggleSettings);
+        $('settingsClose').addEventListener('click', resumeGame);
+        $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) { resumeGame(); } });
         document.querySelector('#settingsModal .modalCard').addEventListener('click', e => { e.stopPropagation(); });
         $('sMusic').addEventListener('click', () => { startMusic(); setMusic(!musicOn); });
         $('sVol').addEventListener('input', () => { const v = +$('sVol').value; $('vVol').textContent = v + '%'; setVolume(v / 100); });
