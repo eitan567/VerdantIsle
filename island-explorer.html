@@ -2455,6 +2455,71 @@
       }
 
       let closingOverlay = false;
+      let pointerLockPending = false;
+      let pointerLockRequestId = 0;
+
+      function clearInputState() {
+        for (const code in keys) keys[code] = false;
+      }
+
+      function showPauseMenu() {
+        clearInputState();
+        if (!inMainMenu) {
+          document.getElementById('startupButtons').classList.add('hidden-group');
+          document.getElementById('pausedButtons').classList.remove('hidden-group');
+        }
+        overlay.classList.remove('hide');
+        overlay.style.display = 'flex';
+        setPausedState(true);
+      }
+
+      function hideMenuOverlay() {
+        overlay.classList.add('hide');
+        overlay.addEventListener('transitionend', function handler() {
+          if (overlay.classList.contains('hide')) overlay.style.display = 'none';
+          overlay.removeEventListener('transitionend', handler);
+        });
+      }
+
+      function handlePointerLockFailure() {
+        if (document.pointerLockElement === canvas) return;
+        pointerLockPending = false;
+        _hideOverlays();
+        if (!inMainMenu) showPauseMenu();
+      }
+
+      function requestGamePointerLock() {
+        if (pointerLockPending) return;
+        if (document.pointerLockElement === canvas) {
+          _hideOverlays();
+          hideMenuOverlay();
+          setPausedState(false);
+          return;
+        }
+        if (!canvas.requestPointerLock) {
+          showPauseMenu();
+          return;
+        }
+
+        pointerLockPending = true;
+        const requestId = ++pointerLockRequestId;
+        _hideOverlays();
+        setPausedState(true);
+        overlay.classList.remove('hide');
+        overlay.style.display = 'flex';
+
+        const result = canvas.requestPointerLock();
+        if (result && typeof result.catch === 'function') {
+          result.catch(handlePointerLockFailure);
+        } else {
+          setTimeout(() => {
+            if (pointerLockPending && pointerLockRequestId === requestId && document.pointerLockElement !== canvas) {
+              handlePointerLockFailure();
+            }
+          }, 1200);
+        }
+      }
+
       function resumeGame() {
         if (inMainMenu) {
           _hideOverlays();
@@ -2462,28 +2527,8 @@
           overlay.style.display = 'flex';
           setPausedState(true);
         } else {
-          // In-game: request pointer lock.
-          // Note: The overlays will be hidden and the game unpaused automatically
-          // inside pointerlockchange once pointer lock is successfully acquired!
-          // If pointer lock is rejected (browser cooldown after Escape), fall back
-          // to manually hiding overlays and unpausing.
-          const c = document.getElementById('c');
-          if (c && c.requestPointerLock) {
-            const result = c.requestPointerLock();
-            if (result && typeof result.catch === 'function') {
-              result.catch(() => {
-                // Pointer lock was rejected (browser cooldown after Escape).
-                // Manually resume the game without pointer lock.
-                _hideOverlays();
-                overlay.classList.add('hide');
-                overlay.addEventListener('transitionend', function handler() {
-                  overlay.style.display = 'none';
-                  overlay.removeEventListener('transitionend', handler);
-                });
-                setPausedState(false);
-              });
-            }
-          }
+          // Stay paused until pointerlockchange confirms the mouse is actually locked.
+          requestGamePointerLock();
         }
       }
 
@@ -2868,7 +2913,7 @@
           // show enemies
           enemies.forEach(e => e.visible = true);
         }
-        canvas.requestPointerLock();
+        requestGamePointerLock();
       });
 
       // Multiplayer (locked)
@@ -2979,32 +3024,30 @@
       });
 
       // click the scene to (re)grab the mouse
-      canvas.addEventListener('click', () => { if (paused || inMainMenu) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { canvas.requestPointerLock(); } else { attack(); } });
+      canvas.addEventListener('click', () => { if (paused || inMainMenu) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { requestGamePointerLock(); } else { attack(); } });
 
       document.addEventListener('pointerlockchange', () => {
         locked = document.pointerLockElement === canvas;
+        pointerLockPending = false;
         if (locked) {
           _hideOverlays();
-          overlay.classList.add('hide');
-          overlay.addEventListener('transitionend', function handler() {
-            overlay.style.display = 'none';
-            overlay.removeEventListener('transitionend', handler);
-          });
+          hideMenuOverlay();
           if (!inMainMenu) {
             setPausedState(false);
           }
         } else {
           if (!inMainMenu) {
-            setPausedState(true);
             if (!anyOverlayOpen() && !closingOverlay) {
-              document.getElementById('startupButtons').classList.add('hidden-group');
-              document.getElementById('pausedButtons').classList.remove('hidden-group');
-              overlay.classList.remove('hide');
-              overlay.style.display = 'flex';
+              showPauseMenu();
+            } else {
+              clearInputState();
+              setPausedState(true);
             }
           }
         }
       });
+
+      document.addEventListener('pointerlockerror', handlePointerLockFailure);
 
       /* ============================================================
          GOD / BUILDER MODE  (top-down strategy camera + placeable props)
