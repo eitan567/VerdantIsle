@@ -2381,6 +2381,7 @@
       let paused = false;   // true while a blocking menu (Main menu / Settings / Inventory) is open -> freeze the world
       let started = false;  // true once the player has entered the world at least once
       let inMainMenu = true;
+      let settingsReturnToMenu = false;
       const _PMIDS = ['settingsModal', 'inv', 'aiChat'];
 
       function setPausedState(val) {
@@ -2413,10 +2414,18 @@
         });
       }
 
+      function menuOverlayVisible() {
+        return overlay && overlay.style.display !== 'none' && !overlay.classList.contains('hide');
+      }
+
       function openSettingsPanel() {
+        settingsReturnToMenu = inMainMenu || menuOverlayVisible();
         _hideOverlays();
         document.getElementById('settingsModal').classList.remove('hidden');
-        if (!inMainMenu) {
+        if (settingsReturnToMenu) {
+          overlay.classList.remove('hide');
+          overlay.style.display = 'flex';
+        } else {
           overlay.classList.add('hide');
           overlay.style.display = 'none';
         }
@@ -2478,6 +2487,18 @@
         }
       }
 
+      function closeSettingsPanel() {
+        document.getElementById('settingsModal').classList.add('hidden');
+        if (settingsReturnToMenu) {
+          settingsReturnToMenu = false;
+          overlay.classList.remove('hide');
+          overlay.style.display = 'flex';
+          setPausedState(true);
+        } else {
+          resumeGame();
+        }
+      }
+
       const typing = () => { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'); };
 
       addEventListener('keydown', e => {
@@ -2506,7 +2527,7 @@
         if (p.classList.contains('hidden')) {
           openSettingsPanel();
         } else {
-          resumeGame();
+          closeSettingsPanel();
         }
       }
 
@@ -2529,9 +2550,13 @@
         keys[e.code] = false;
         if (e.code === 'Escape') {
           if (anyOverlayOpen()) {
-            // A panel (Settings/Inventory/Chat) is open — close it and resume
+            // A panel (Settings/Inventory/Chat) is open — close it in its original context.
             e.preventDefault();
-            resumeGame();
+            if (document.getElementById('settingsModal').classList.contains('hidden')) {
+              resumeGame();
+            } else {
+              closeSettingsPanel();
+            }
           }
           // NOTE: We intentionally do NOT call resumeGame() when the pause menu
           // overlay is showing (Continue/End Game buttons). The browser blocks
@@ -3747,8 +3772,8 @@
         ids.forEach(k => S[k].addEventListener('input', apply));
         try { const v = JSON.parse(localStorage.getItem('vi_look')); if (v && v.length === 6) ids.forEach((k, i) => S[k].value = v[i]); } catch (e) { }
         $('gear').addEventListener('click', toggleSettings);
-        $('settingsClose').addEventListener('click', resumeGame);
-        $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) { resumeGame(); } });
+        $('settingsClose').addEventListener('click', closeSettingsPanel);
+        $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) { closeSettingsPanel(); } });
         document.querySelector('#settingsModal .modalCard').addEventListener('click', e => { e.stopPropagation(); });
         $('sMusic').addEventListener('click', () => { startMusic(); setMusic(!musicOn); });
         $('sVol').addEventListener('input', () => { const v = +$('sVol').value; $('vVol').textContent = v + '%'; setVolume(v / 100); });
