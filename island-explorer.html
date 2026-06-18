@@ -2500,6 +2500,7 @@
       let pointerLockRequestId = 0;
       let keepPlayingOnPointerLockFailure = false;
       let suppressNextUnlockPauseMenu = false;
+      let suppressBuildUnlockPauseMenu = false;
       let delayedPointerLockTimer = 0;
       // Give the browser a short gap after ESC before trying to relock from Continue.
       const CONTINUE_RELOCK_DELAY_MS = 1000;
@@ -2571,6 +2572,17 @@
         menuCameraTransition.startedAt = performance.now();
         menuCameraTransition.duration = MENU_CAMERA_IN_MS;
         setOrbitMenuPose(performance.now() * 0.001, menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+        captureGameCameraPose(menuCameraTransition.toPos, menuCameraTransition.toQuat);
+        setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+      }
+
+      function beginResumeCameraTransitionFromCamera(sourceCamera) {
+        menuCameraTransition.mode = 'fromBuild';
+        menuCameraTransition.startedAt = performance.now();
+        menuCameraTransition.duration = MENU_CAMERA_IN_MS;
+        sourceCamera.updateMatrixWorld(true);
+        sourceCamera.getWorldPosition(menuCameraTransition.fromPos);
+        sourceCamera.getWorldQuaternion(menuCameraTransition.fromQuat);
         captureGameCameraPose(menuCameraTransition.toPos, menuCameraTransition.toQuat);
         setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
       }
@@ -2691,6 +2703,7 @@
           hideMenuOverlay();
           keepPlayingOnPointerLockFailure = false;
           suppressNextUnlockPauseMenu = false;
+          suppressBuildUnlockPauseMenu = false;
           setPausedState(false);
           return;
         }
@@ -2731,6 +2744,10 @@
           overlay.classList.remove('hide');
           overlay.style.display = 'flex';
           setPausedState(true);
+        } else if (mode === 'god') {
+          _hideOverlays();
+          hideMenuOverlayNow();
+          setPausedState(false);
         } else {
           // Default panels stay paused until pointerlockchange confirms lock.
           // Continue can pass options to resume immediately and hide the pause menu.
@@ -2742,6 +2759,7 @@
         pointerLockPending = false;
         keepPlayingOnPointerLockFailure = false;
         suppressNextUnlockPauseMenu = false;
+        suppressBuildUnlockPauseMenu = false;
         _hideOverlays();
         hideMenuOverlayNow();
         beginResumeCameraTransition();
@@ -3175,8 +3193,10 @@
         pointerLockPending = false;
         keepPlayingOnPointerLockFailure = false;
         suppressNextUnlockPauseMenu = false;
+        suppressBuildUnlockPauseMenu = false;
         inMainMenu = true;
         paused = false;
+        if (mode === 'god') setMode('fps');
         pitch = 0;
         yaw = 0;
         player.rotation.set(0, 0, 0);
@@ -3253,6 +3273,7 @@
           clearDelayedPointerLockTimer();
           keepPlayingOnPointerLockFailure = false;
           suppressNextUnlockPauseMenu = false;
+          suppressBuildUnlockPauseMenu = false;
           _hideOverlays();
           hideMenuOverlay();
           if (!inMainMenu) {
@@ -3260,6 +3281,16 @@
           }
         } else {
           if (!inMainMenu) {
+            if (suppressBuildUnlockPauseMenu) {
+              suppressBuildUnlockPauseMenu = false;
+              keepPlayingOnPointerLockFailure = false;
+              suppressNextUnlockPauseMenu = false;
+              _hideOverlays();
+              hideMenuOverlayNow();
+              setPausedState(false);
+              clearInputState();
+              return;
+            }
             if (suppressNextUnlockPauseMenu && !wasLocked) {
               suppressNextUnlockPauseMenu = false;
               _hideOverlays();
@@ -3524,11 +3555,49 @@
         cursor.visible = false;
         const tb = document.getElementById('treebar'); if (tb) tb.classList.toggle('hidden', !(m === 'god' && tool === 'tree'));
         if (ghost && m !== 'god') ghost.visible = false;
-        if (m === 'god') { if (document.pointerLockElement) document.exitPointerLock(); godTarget.set(player.position.x, 0, player.position.z); godCam.aspect = innerWidth / innerHeight; godCam.updateProjectionMatrix(); }
+        if (m === 'god') { godTarget.set(player.position.x, 0, player.position.z); godCam.aspect = innerWidth / innerHeight; godCam.updateProjectionMatrix(); }
+      }
+      function enterBuildMode() {
+        if (inMainMenu || paused || anyOverlayOpen() || menuCameraTransitionActive()) return;
+        clearDelayedPointerLockTimer();
+        pointerLockPending = false;
+        keepPlayingOnPointerLockFailure = false;
+        suppressNextUnlockPauseMenu = false;
+        _hideOverlays();
+        hideMenuOverlayNow();
+        cancelMenuCameraTransition();
+        setPausedState(false);
+        setMode('god');
+        if (hasGamePointerLock() && document.exitPointerLock) {
+          suppressBuildUnlockPauseMenu = true;
+          document.exitPointerLock();
+        }
+      }
+      function exitBuildMode() {
+        if (mode !== 'god' || inMainMenu || anyOverlayOpen() || menuCameraTransitionActive()) return;
+        clearDelayedPointerLockTimer();
+        pointerLockPending = false;
+        keepPlayingOnPointerLockFailure = false;
+        suppressNextUnlockPauseMenu = false;
+        suppressBuildUnlockPauseMenu = false;
+        _hideOverlays();
+        hideMenuOverlayNow();
+        clearInputState();
+        setPausedState(false);
+        beginResumeCameraTransitionFromCamera(godCam);
+        setMode('fps');
+        scheduleGamePointerLock(CONTINUE_RELOCK_DELAY_MS);
       }
       addEventListener('keydown', e => {
-        if (e.code === 'KeyG') setMode(mode === 'god' ? 'fps' : 'god');
-        if (mode === 'god') {
+        if (typing()) return;
+        if (e.code === 'KeyG') {
+          if (e.repeat) return;
+          e.preventDefault();
+          if (mode === 'god') exitBuildMode();
+          else enterBuildMode();
+          return;
+        }
+        if (mode === 'god' && !paused && !anyOverlayOpen()) {
           const map = { Digit1: 'tree', Digit2: 'rock', Digit3: 'bush', Digit4: 'house', Digit5: 'crystal', Digit6: 'erase' }; if (map[e.code]) selectTool(map[e.code]);
           if (tool === 'tree') { if (e.code === 'Comma') cycleTree(-1); if (e.code === 'Period') cycleTree(1); }
         }
