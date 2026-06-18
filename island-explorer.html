@@ -2456,9 +2456,24 @@
           // In-game: request pointer lock.
           // Note: The overlays will be hidden and the game unpaused automatically
           // inside pointerlockchange once pointer lock is successfully acquired!
+          // If pointer lock is rejected (browser cooldown after Escape), fall back
+          // to manually hiding overlays and unpausing.
           const c = document.getElementById('c');
           if (c && c.requestPointerLock) {
-            c.requestPointerLock();
+            const result = c.requestPointerLock();
+            if (result && typeof result.catch === 'function') {
+              result.catch(() => {
+                // Pointer lock was rejected (browser cooldown after Escape).
+                // Manually resume the game without pointer lock.
+                _hideOverlays();
+                overlay.classList.add('hide');
+                overlay.addEventListener('transitionend', function handler() {
+                  overlay.style.display = 'none';
+                  overlay.removeEventListener('transitionend', handler);
+                });
+                setPausedState(false);
+              });
+            }
           }
         }
       }
@@ -2514,12 +2529,15 @@
         keys[e.code] = false;
         if (e.code === 'Escape') {
           if (anyOverlayOpen()) {
-            e.preventDefault();
-            resumeGame();
-          } else if (!inMainMenu && overlay.style.display === 'flex' && !overlay.classList.contains('hide')) {
+            // A panel (Settings/Inventory/Chat) is open — close it and resume
             e.preventDefault();
             resumeGame();
           }
+          // NOTE: We intentionally do NOT call resumeGame() when the pause menu
+          // overlay is showing (Continue/End Game buttons). The browser blocks
+          // requestPointerLock() for ~1.5s after an Escape-initiated unlock,
+          // so attempting it here wastes the user gesture and causes the Continue
+          // button to sometimes require a double-click.
         }
       });
 
@@ -2862,7 +2880,7 @@
       document.getElementById('btnContinue').addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        canvas.requestPointerLock(); // request pointer lock to continue game
+        resumeGame(); // uses fallback if pointer lock is rejected by browser
       });
 
       // End Current Game
