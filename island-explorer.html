@@ -1591,6 +1591,12 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.6.9/umd/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/curves/NURBSUtils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/curves/NURBSCurve.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script>
     (function () {
       "use strict";
@@ -3980,7 +3986,7 @@
       /* ============================================================
          WILDLIFE — circling birds, hopping rabbits, grazing deer
          ============================================================ */
-      const birds = [], critters = [];
+      const birds = [], critters = [], parrots = [], cats = [], stags = [];
       (function () {
         const birdMat = new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 0.7, flatShading: true });
         function makeBird() {
@@ -4023,11 +4029,342 @@
         for (let i = 0; i < 10; i++) { for (let tr = 0; tr < 30; tr++) { const r = makeRabbit(); if (heightAt(r.g.position.x, r.g.position.z) > WATER + 0.5) { critters.push(r); break; } else scene.remove(r.g); } }
         for (let i = 0; i < 6; i++) { for (let tr = 0; tr < 30; tr++) { const d = makeDeer(); if (heightAt(d.g.position.x, d.g.position.z) > WATER + 1) { critters.push(d); break; } else scene.remove(d.g); } }
       })();
+      (function loadParrotFlock() {
+        if (!THREE.GLTFLoader) return;
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Flying_Parrot_Animated.glb', gltf => {
+          const clip = gltf.animations && gltf.animations[0];
+          gltf.scene.traverse(o => {
+            if (!o.isMesh) return;
+            o.castShadow = true;
+            o.receiveShadow = false;
+            o.frustumCulled = false;
+            if (o.material) {
+              const mats = Array.isArray(o.material) ? o.material : [o.material];
+              mats.forEach(m => { m.roughness = Math.max(0.55, m.roughness || 0.55); m.needsUpdate = true; });
+            }
+          });
+          for (let i = 0; i < 9; i++) {
+            const g = new THREE.Group();
+            const model = gltf.scene.clone(true);
+            model.scale.setScalar(0.034 + rnd() * 0.012);
+            g.add(model);
+            scene.add(g);
+            const mixer = clip ? new THREE.AnimationMixer(model) : null;
+            if (mixer) {
+              const action = mixer.clipAction(clip);
+              action.timeScale = 0.85 + rnd() * 0.5;
+              action.play();
+              mixer.setTime(rnd() * clip.duration);
+            }
+            parrots.push({
+              g, model, mixer,
+              cx: (rnd() - 0.5) * WORLD * 0.58,
+              cz: (rnd() - 0.5) * WORLD * 0.58,
+              r: 34 + rnd() * 68,
+              ang: rnd() * 6.28,
+              sp: 0.12 + rnd() * 0.16,
+              hgt: 38 + rnd() * 30,
+              phase: rnd() * 6.28,
+              driftX: 6 + rnd() * 10,
+              driftZ: 6 + rnd() * 10
+            });
+          }
+        }, undefined, err => console.warn('Could not load Flying_Parrot_Animated.glb', err));
+      })();
+      function fbxClip(clips, patterns) {
+        for (let i = 0; i < patterns.length; i++) {
+          const rx = patterns[i];
+          const clip = clips.find(c => rx.test(c.name || ''));
+          if (clip) return clip;
+        }
+        return clips[0] || null;
+      }
+      function makeFbxActions(model, clips, names) {
+        const mixer = clips.length ? new THREE.AnimationMixer(model) : null;
+        const actions = {};
+        if (!mixer) return { mixer, actions };
+        Object.keys(names).forEach(key => {
+          const clip = fbxClip(clips, names[key]);
+          if (clip) actions[key] = mixer.clipAction(clip);
+        });
+        return { mixer, actions };
+      }
+      function playAnimalAction(animal, name, fade = 0.25) {
+        if (!animal.actions || !animal.actions[name] || animal.currentAction === name) return;
+        const next = animal.actions[name];
+        next.enabled = true;
+        next.reset();
+        next.play();
+        if (animal.currentAction && animal.actions[animal.currentAction]) {
+          animal.actions[animal.currentAction].crossFadeTo(next, fade, false);
+        }
+        animal.currentAction = name;
+      }
+      function groundedAnimalClips(clips) {
+        return (clips || []).map(clip => {
+          const tracks = (clip.tracks || [])
+            .filter(track => !/\.position$/i.test(track.name || ''))
+            .map(track => track.clone ? track.clone() : track);
+          const grounded = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+          grounded.optimize();
+          return grounded;
+        });
+      }
+      const animalGroundSnapBox = new THREE.Box3();
+      const animalGroundSnapQuat = new THREE.Quaternion();
+      const animalGroundSnapUp = new THREE.Vector3();
+      function snapModelBottomToGroupGround(animal, groundOffset = 0) {
+        animal.g.updateMatrixWorld(true);
+        animal.model.updateMatrixWorld(true);
+        animalGroundSnapBox.setFromObject(animal.model);
+        const bottom = animalGroundSnapBox.min.y;
+        if (!Number.isFinite(bottom)) return;
+        const upY = Math.max(0.2, Math.abs(animalGroundSnapUp.set(0, 1, 0).applyQuaternion(animal.g.getWorldQuaternion(animalGroundSnapQuat)).y));
+        animal.model.position.y -= (bottom - (animal.g.position.y + groundOffset)) / upY;
+      }
+      const terrainNormalTmp = new THREE.Vector3();
+      const terrainForwardTmp = new THREE.Vector3();
+      const terrainRightTmp = new THREE.Vector3();
+      const terrainMatrixTmp = new THREE.Matrix4();
+      const terrainQuatTmp = new THREE.Quaternion();
+      function terrainNormalAt(x, z, step = 1.4) {
+        const hL = heightAt(x - step, z), hR = heightAt(x + step, z);
+        const hD = heightAt(x, z - step), hU = heightAt(x, z + step);
+        return terrainNormalTmp.set(hL - hR, step * 2, hD - hU).normalize();
+      }
+      function orientGroundAnimal(animal, heading, yOffset = 0, smooth = 0.35) {
+        const g = animal.g || animal;
+        const ground = Math.max(heightAt(g.position.x, g.position.z), WATER);
+        g.position.y = ground + yOffset;
+        const up = terrainNormalAt(g.position.x, g.position.z);
+        const forward = terrainForwardTmp.set(Math.sin(heading), 0, Math.cos(heading));
+        forward.addScaledVector(up, -forward.dot(up));
+        if (forward.lengthSq() < 0.0001) forward.set(0, 0, 1);
+        forward.normalize();
+        const right = terrainRightTmp.crossVectors(up, forward).normalize();
+        forward.crossVectors(right, up).normalize();
+        terrainMatrixTmp.makeBasis(right, up, forward);
+        terrainQuatTmp.setFromRotationMatrix(terrainMatrixTmp);
+        if (smooth >= 1) g.quaternion.copy(terrainQuatTmp);
+        else g.quaternion.slerp(terrainQuatTmp, Math.max(0.01, Math.min(1, smooth)));
+      }
+      // (function loadCatCritters() {
+      //   if (!THREE.FBXLoader) return;
+      //   const loader = new THREE.FBXLoader();
+      //   loader.load('models/cat_rigged.fbx', fbx => {
+      //     const clips = groundedAnimalClips(fbx.animations || []);
+      //     const catFallbackMat = new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.9, flatShading: true });
+      //     fbx.traverse(o => {
+      //       if (!o.isMesh) return;
+      //       o.castShadow = true;
+      //       o.receiveShadow = true;
+      //       o.frustumCulled = false;
+      //       if (!o.material) o.material = catFallbackMat;
+      //       if (o.material) {
+      //         const mats = Array.isArray(o.material) ? o.material : [o.material];
+      //         mats.forEach(m => {
+      //           if ('roughness' in m) m.roughness = Math.max(0.7, m.roughness || 0.7);
+      //           if (m.color && !m.map) m.color.lerp(new THREE.Color(0x3a2a20), 0.25);
+      //           m.needsUpdate = true;
+      //         });
+      //       }
+      //     });
+      //     const box = new THREE.Box3().setFromObject(fbx);
+      //     const size = box.getSize(new THREE.Vector3());
+      //     const baseScale = 2.5 / Math.max(size.x || 1, size.y || 1, size.z || 1);
+      //     const cloneModel = () => THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(fbx) : fbx.clone(true);
+      //     for (let i = 0; i < 12; i++) {
+      //       let x = 0, z = 0, h = WATER + 2;
+      //       for (let tr = 0; tr < 50; tr++) {
+      //         if (i < 5) {
+      //           const a = rnd() * 6.28, d = 12 + rnd() * 48;
+      //           x = Math.sin(a) * d;
+      //           z = 30 + Math.cos(a) * d;
+      //         } else {
+      //           x = (rnd() - 0.5) * WORLD * 0.68;
+      //           z = (rnd() - 0.5) * WORLD * 0.68;
+      //         }
+      //         h = heightAt(x, z);
+      //         if (h > WATER + 1.0) break;
+      //       }
+      //       const g = new THREE.Group();
+      //       const model = cloneModel();
+      //       const scale = baseScale * (0.85 + rnd() * 0.28);
+      //       const modelBaseY = -box.min.y * scale;
+      //       model.scale.setScalar(scale);
+      //       model.position.y = modelBaseY;
+      //       g.add(model);
+      //       g.position.set(x, h, z);
+      //       scene.add(g);
+      //       const anim = makeFbxActions(model, clips, {
+      //         walk: [/walk/i, /run/i, /cat/i, /.*/],
+      //         idle: [/idle/i, /.*/]
+      //       });
+      //       Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.8 + rnd() * 0.35; });
+      //       const cat = { g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '', sp: 2.1 + rnd() * 1.4, ang: rnd() * 6.28, t: rnd() * 9, dir: 1 + rnd() * 3, bob: rnd() * 6.28 };
+      //       playAnimalAction(cat, anim.actions.idle ? 'idle' : 'walk', 0);
+      //       if (cat.mixer) cat.mixer.setTime(rnd() * 1.5);
+      //       model.position.set(0, modelBaseY, 0);
+      //       orientGroundAnimal(cat, cat.ang, 0, 1);
+      //       snapModelBottomToGroupGround(cat);
+      //       cats.push(cat);
+      //     }
+      //   }, undefined, err => console.warn('Could not load cat_rigged.fbx', err));
+      // })();
+      (function loadStagCritters() {
+        if (!THREE.FBXLoader) return;
+        const loader = new THREE.FBXLoader();
+        loader.load('models/Stag.fbx', fbx => {
+          const clips = fbx.animations || [];
+          fbx.traverse(o => {
+            if (!o.isMesh) return;
+            o.castShadow = true;
+            o.receiveShadow = true;
+            o.frustumCulled = false;
+            if (o.material) {
+              const mats = Array.isArray(o.material) ? o.material : [o.material];
+              mats.forEach(m => {
+                if ('roughness' in m) m.roughness = Math.max(0.85, m.roughness || 0.85);
+                m.needsUpdate = true;
+              });
+            }
+          });
+          const box = new THREE.Box3().setFromObject(fbx);
+          const size = box.getSize(new THREE.Vector3());
+          const baseScale = 4.4 / Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const cloneModel = () => THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(fbx) : fbx.clone(true);
+          for (let i = 0; i < 5; i++) {
+            let x = 0, z = 0, h = WATER + 2;
+            for (let tr = 0; tr < 60; tr++) {
+              x = (rnd() - 0.5) * WORLD * 0.72;
+              z = (rnd() - 0.5) * WORLD * 0.72;
+              h = heightAt(x, z);
+              if (h > WATER + 1.4) break;
+            }
+            const g = new THREE.Group();
+            const model = cloneModel();
+            const scale = baseScale * (0.9 + rnd() * 0.18);
+            const modelBaseY = -box.min.y * scale;
+            model.scale.setScalar(scale);
+            model.position.y = modelBaseY;
+            g.add(model);
+            g.position.set(x, h, z);
+            scene.add(g);
+            const anim = makeFbxActions(model, clips, {
+              idle: [/^Idle$/i, /AnimalArmature\|Idle$/i, /Idle_2/i, /idle/i],
+              idle2: [/Idle_2/i, /^Idle$/i, /idle/i],
+              headlow: [/Idle_Headlow/i, /Headlow/i, /Eating/i, /idle/i],
+              eating: [/Eating/i, /Idle_Headlow/i, /idle/i],
+              walk: [/^Walk$/i, /AnimalArmature\|Walk/i, /walk/i],
+              gallop: [/Gallop$/i, /run/i, /Walk/i],
+              jump: [/Jump_toIdle/i, /Gallop_Jump/i, /Idle/i]
+            });
+            Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.85 + rnd() * 0.25; });
+            const stag = {
+              g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '',
+              sp: 2.0 + rnd() * 1.0,
+              runSp: 7.4 + rnd() * 1.8,
+              ang: rnd() * 6.28,
+              t: rnd() * 9,
+              dir: 1 + rnd() * 3,
+              state: 'idle',
+              stateT: 1 + rnd() * 4,
+              idlePick: rnd()
+            };
+            playAnimalAction(stag, stag.idlePick < 0.34 && anim.actions.eating ? 'eating' : (stag.idlePick < 0.67 && anim.actions.headlow ? 'headlow' : 'idle'), 0);
+            if (stag.mixer) stag.mixer.setTime(rnd() * 2);
+            orientGroundAnimal(stag, stag.ang, 0, 1);
+            stags.push(stag);
+          }
+        }, undefined, err => console.warn('Could not load Stag.fbx', err));
+      })();
       function updateWildlife(dt, t) {
         for (let i = 0; i < birds.length; i++) {
           const b = birds[i]; b.ang += b.sp * dt;
           b.g.position.set(b.cx + Math.cos(b.ang) * b.r, b.hgt + Math.sin(t * 0.5 + b.fph) * 4, b.cz + Math.sin(b.ang) * b.r);
           b.g.rotation.y = -b.ang; const f = Math.sin(t * b.flap + b.fph) * 0.7; b.wl.rotation.z = f; b.wr.rotation.z = -f;
+        }
+        for (let i = 0; i < parrots.length; i++) {
+          const p = parrots[i];
+          p.ang += p.sp * dt;
+          const x = p.cx + Math.cos(p.ang) * p.r + Math.sin(t * 0.17 + p.phase) * p.driftX;
+          const z = p.cz + Math.sin(p.ang) * p.r + Math.cos(t * 0.13 + p.phase) * p.driftZ;
+          const y = Math.max(heightAt(x, z) + 16, p.hgt + Math.sin(t * 0.8 + p.phase) * 5);
+          const nx = p.cx + Math.cos(p.ang + 0.02) * p.r + Math.sin(t * 0.17 + p.phase) * p.driftX;
+          const nz = p.cz + Math.sin(p.ang + 0.02) * p.r + Math.cos(t * 0.13 + p.phase) * p.driftZ;
+          p.g.position.set(x, y, z);
+          p.g.rotation.set(Math.sin(t * 0.65 + p.phase) * 0.08, Math.atan2(nx - x, nz - z), Math.sin(t * 0.9 + p.phase) * 0.14);
+          if (p.mixer) p.mixer.update(dt);
+        }
+        for (let i = 0; i < cats.length; i++) {
+          const c = cats[i];
+          c.t += dt; c.dir -= dt;
+          const dpx = c.g.position.x - player.position.x, dpz = c.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
+          let sp = c.sp;
+          if (mode === 'fps' && pd < 8) { c.ang = Math.atan2(dpx, dpz); sp = c.sp * 1.9; }
+          else if (c.dir <= 0) { c.ang += (Math.random() - 0.5) * 1.8; c.dir = 1.5 + Math.random() * 4; }
+          playAnimalAction(c, sp > c.sp * 1.15 || c.dir > 0.5 ? 'walk' : (c.actions.idle ? 'idle' : 'walk'));
+          const nx = c.g.position.x + Math.sin(c.ang) * sp * dt;
+          const nz = c.g.position.z + Math.cos(c.ang) * sp * dt;
+          if (heightAt(nx, nz) > WATER + 0.4) { c.g.position.x = nx; c.g.position.z = nz; } else { c.ang += Math.PI; c.dir = 0.7; }
+          const lim = WORLD * 0.5 - 4;
+          c.g.position.x = Math.max(-lim, Math.min(lim, c.g.position.x));
+          c.g.position.z = Math.max(-lim, Math.min(lim, c.g.position.z));
+          orientGroundAnimal(c, c.ang, 0, 0.45);
+          if (c.mixer) c.mixer.update(dt * Math.max(0.6, Math.min(1.8, sp / c.sp)));
+          c.model.position.set(0, c.modelBaseY + Math.sin((t + c.bob) * 8) * 0.035, 0);
+          snapModelBottomToGroupGround(c);
+        }
+        for (let i = 0; i < stags.length; i++) {
+          const s = stags[i];
+          s.t += dt; s.dir -= dt; s.stateT -= dt;
+          const dpx = s.g.position.x - player.position.x, dpz = s.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
+          let sp = 0;
+          if (mode === 'fps' && pd < 22) {
+            s.state = 'gallop';
+            s.stateT = 1.2;
+            s.ang = Math.atan2(dpx, dpz);
+            sp = s.runSp;
+            playAnimalAction(s, 'gallop');
+          } else {
+            if (s.stateT <= 0) {
+              const r = rnd();
+              if (r < 0.25) { s.state = 'eating'; s.stateT = 2.5 + rnd() * 4.5; }
+              else if (r < 0.48) { s.state = 'headlow'; s.stateT = 2 + rnd() * 3; }
+              else if (r < 0.7) { s.state = 'idle'; s.stateT = 1.5 + rnd() * 3.5; }
+              else { s.state = 'walk'; s.stateT = 2 + rnd() * 5; s.dir = s.stateT; s.ang += (rnd() - 0.5) * 1.6; }
+            }
+            if (s.state === 'walk') {
+              sp = s.sp;
+              playAnimalAction(s, 'walk');
+            } else {
+              sp = 0;
+              const act = s.state === 'eating' && s.actions.eating ? 'eating' : (s.state === 'headlow' && s.actions.headlow ? 'headlow' : (s.state === 'idle' && s.actions.idle2 && s.idlePick > 0.5 ? 'idle2' : 'idle'));
+              playAnimalAction(s, act);
+            }
+          }
+          if (sp > 0) {
+            const nx = s.g.position.x + Math.sin(s.ang) * sp * dt;
+            const nz = s.g.position.z + Math.cos(s.ang) * sp * dt;
+            if (heightAt(nx, nz) > WATER + 0.6) {
+              s.g.position.x = nx; s.g.position.z = nz;
+            } else {
+              s.ang += Math.PI * (0.65 + rnd() * 0.35);
+              s.state = 'idle';
+              s.stateT = 0.9;
+              playAnimalAction(s, s.actions.jump ? 'jump' : 'idle');
+            }
+          }
+          const lim = WORLD * 0.5 - 5;
+          if (s.g.position.x < -lim || s.g.position.x > lim || s.g.position.z < -lim || s.g.position.z > lim) {
+            s.ang += Math.PI;
+            s.g.position.x = Math.max(-lim, Math.min(lim, s.g.position.x));
+            s.g.position.z = Math.max(-lim, Math.min(lim, s.g.position.z));
+          }
+          orientGroundAnimal(s, s.ang, 0, 0.35);
+          s.model.position.y = s.modelBaseY + (sp > 0 ? Math.sin((t + s.t) * 6) * 0.035 : 0);
+          if (s.mixer) s.mixer.update(dt * (s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85));
         }
         for (let i = 0; i < critters.length; i++) {
           const c = critters[i]; c.t += dt; c.dir -= dt;
@@ -4038,7 +4375,7 @@
           const nx = c.g.position.x + Math.sin(c.ang) * sp * dt, nz = c.g.position.z + Math.cos(c.ang) * sp * dt;
           if (heightAt(nx, nz) > WATER + 0.3) { c.g.position.x = nx; c.g.position.z = nz; } else c.ang += Math.PI;
           const lim = WORLD * 0.5 - 4; c.g.position.x = Math.max(-lim, Math.min(lim, c.g.position.x)); c.g.position.z = Math.max(-lim, Math.min(lim, c.g.position.z));
-          c.g.position.y = Math.max(heightAt(c.g.position.x, c.g.position.z), WATER); c.g.rotation.y = c.ang;
+          orientGroundAnimal(c, c.ang, 0, 0.4);
           if (c.type === 'rabbit') { c.hop += dt * (6 + sp); c.g.position.y += Math.max(0, Math.sin(c.hop)) * 0.4; }
           else { const g2 = Math.sin(c.t * 5) * 0.5; for (let l = 0; l < c.legs.length; l++) c.legs[l].rotation.x = (l % 2 ? g2 : -g2); }
         }
