@@ -1679,14 +1679,53 @@
          ============================================================ */
       const hemi = new THREE.HemisphereLight(0x9ec6ec, 0x4f5e2c, 0.5); // cool sky fill + warm earth bounce
       scene.add(hemi);
+      const SHADOW_HALF_FPS = 110;
+      const SHADOW_HALF_MENU = 180;
       const sun = new THREE.DirectionalLight(0xfff0cc, 1.4); // warm key light -> painterly warm/cool contrast
       sun.position.set(80, 120, 40);
       sun.castShadow = true;
-      sun.shadow.mapSize.set(2048, 2048);
+      sun.shadow.mapSize.set(4096, 4096);
       sun.shadow.camera.near = 10; sun.shadow.camera.far = 700;
-      const sc = 120; sun.shadow.camera.left = -sc; sun.shadow.camera.right = sc; sun.shadow.camera.top = sc; sun.shadow.camera.bottom = -sc;
-      sun.shadow.bias = -0.0004;
+      sun.shadow.bias = -0.001;
+      sun.shadow.normalBias = 0;
       scene.add(sun); scene.add(sun.target);
+      const shadowLightOffset = new THREE.Vector3(80, 150, 50);
+      const shadowLightDir = shadowLightOffset.clone().normalize();
+      const shadowRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), shadowLightDir).normalize();
+      const shadowUp = new THREE.Vector3().crossVectors(shadowLightDir, shadowRight).normalize();
+      const shadowFocus = new THREE.Vector3();
+      function setShadowFocus(x, y, z, half) {
+        const cam = sun.shadow.camera;
+        if (Math.abs(cam.right - half) > 0.5) {
+          cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
+          cam.updateProjectionMatrix();
+        }
+        const texel = (half * 2) / sun.shadow.mapSize.x;
+        const rightDot = x * shadowRight.x + y * shadowRight.y + z * shadowRight.z;
+        const upDot = x * shadowUp.x + y * shadowUp.y + z * shadowUp.z;
+        const rightSnap = Math.round(rightDot / texel) * texel - rightDot;
+        const upSnap = Math.round(upDot / texel) * texel - upDot;
+        shadowFocus.set(
+          x + shadowRight.x * rightSnap + shadowUp.x * upSnap,
+          y + shadowRight.y * rightSnap + shadowUp.y * upSnap,
+          z + shadowRight.z * rightSnap + shadowUp.z * upSnap
+        );
+        sun.target.position.copy(shadowFocus);
+        sun.position.copy(shadowFocus).add(shadowLightOffset);
+        sun.target.updateMatrixWorld();
+        sun.updateMatrixWorld();
+      }
+      setShadowFocus(0, 0, 0, SHADOW_HALF_FPS);
+      function useFrontShadowFaces(material) {
+        if (Array.isArray(material)) { material.forEach(useFrontShadowFaces); return material; }
+        if (material && !material.transparent && material.side !== THREE.DoubleSide) material.shadowSide = THREE.FrontSide;
+        return material;
+      }
+      function normalizeShadowCastingMaterials(root) {
+        root.traverse(obj => {
+          if (obj.castShadow && obj.material) useFrontShadowFaces(obj.material);
+        });
+      }
 
       /* gradient sky dome (kept in a variable so it can be hidden underwater) */
       let skyMesh;
@@ -3292,6 +3331,7 @@
         roof: new THREE.MeshStandardMaterial({ color: 0xd6452f, roughness: 0.9, flatShading: true }),
         stone: new THREE.MeshStandardMaterial({ color: 0xb9bdc2, roughness: 1, flatShading: true })
       };
+      Object.keys(bM).forEach(k => useFrontShadowFaces(bM[k]));
       const bG = {
         trunk: (() => { const g = new THREE.CylinderGeometry(0.34, 0.5, 4.6, 7); g.translate(0, 2.3, 0); return g; })(),
         ball: new THREE.IcosahedronGeometry(2.6, 1), rock: new THREE.DodecahedronGeometry(1, 0), rock2: new THREE.IcosahedronGeometry(1, 0),
@@ -3322,7 +3362,7 @@
       }
       // backward-compat: old tree code calls clump(...) -> now a rich multi-blob cluster (no berries)
       function clump(g, x, y, z, rx, ry, rz, mat) { foliage(g, x, y, z, (rx + rz) * 0.42, mat); }
-      function bm(geo, mat, parent, x, y, z, sx, sy, sz) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
+      function bm(geo, mat, parent, x, y, z, sx, sy, sz) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; useFrontShadowFaces(mat); parent.add(m); return m; }
 
       /* ---- tree model factory: distinct species for the build palette + ghost preview ---- */
       const TREE_KINDS = [
@@ -3415,17 +3455,21 @@
       function buildAt(type, x, z, kind) {
         const h = heightAt(x, z);
         if (type === 'crystal') { // standalone, world-positioned, and collectible in FPS
-          const m = new THREE.Mesh(bG.crystal, bM.crystal); m.position.set(x, h + 1.6, z); m.castShadow = true; m.userData.type = 'crystal'; scene.add(m);
+          const m = new THREE.Mesh(bG.crystal, bM.crystal); m.position.set(x, h + 1.6, z); m.castShadow = true; useFrontShadowFaces(m.material); m.userData.type = 'crystal'; scene.add(m);
           placed.push(m); crystals.push({ mesh: m, baseY: h + 1.6, got: false });
           const tot = document.getElementById('total'); if (tot) tot.textContent = crystals.length;
           return m;
         }
         if (type === 'house' && worldMakeHouse) {   // same enterable, furnished, collidable house as the village
-          const gh = worldMakeHouse(x, z, h, Math.random() * 6.28); gh.userData.type = 'house'; placed.push(gh); return gh;
+          const gh = worldMakeHouse(x, z, h, Math.random() * 6.28); normalizeShadowCastingMaterials(gh); gh.userData.type = 'house'; placed.push(gh); return gh;
         }
         const g = new THREE.Group(); g.position.set(x, h, z); const rot = Math.random() * 6.28; g.rotation.y = rot; scene.add(g);
         if (type === 'tree') { const tk = kind || TREE_KINDS[treeKindIdx].id; g.add(makeTreeModel(tk)); g.userData.kind = tk; }
-        else if (type === 'rock') { const s = 0.7 + Math.random() * 1.7; bm(Math.random() < 0.5 ? bG.rock : bG.rock2, bM.rock, g, 0, s * 0.3, 0, s, s * (0.6 + Math.random() * 0.5), s); colliders.push({ x, z, r: s * 0.7 }); }
+        else if (type === 'rock') {
+          const s = 0.7 + Math.random() * 1.7;
+          bm(Math.random() < 0.5 ? bG.rock : bG.rock2, bM.rock, g, 0, s * 0.3, 0, s, s * (0.6 + Math.random() * 0.5), s);
+          colliders.push({ x, z, r: s * 0.7 });
+        }
         else if (type === 'bush') { const s = 0.8 + Math.random() * 0.6; bm(bG.ball, bM.bush, g, 0, 0.7 * s, 0, s * 0.55, s * 0.5, s * 0.55); bm(bG.ball, bM.bush, g, 0.5 * s, 0.6 * s, 0.2 * s, s * 0.38, s * 0.36, s * 0.38); bm(bG.ball, bM.bush, g, -0.45 * s, 0.62 * s, -0.2 * s, s * 0.34, s * 0.32, s * 0.34); }
         g.userData.type = type; placed.push(g); return g;
       }
@@ -3745,6 +3789,7 @@
           if (mode === 'fps' && dist < 1.05 && dist > 1e-4) { const k = (1.05 - dist) / dist; player.position.x += dx * k; player.position.z += dz * k; } // can't walk through a slime
         }
       }
+      normalizeShadowCastingMaterials(scene);
 
       /* ============================================================
          LOOP
@@ -3793,8 +3838,7 @@
 
           updateWildlife(dt, t);
 
-          sun.position.set(80, 150, 50);
-          sun.target.position.set(0, 0, 0);
+          setShadowFocus(0, 0, 0, SHADOW_HALF_MENU);
 
           renderer.render(scene, camera);
           return;
@@ -3968,12 +4012,11 @@
         const cp = document.getElementById('chestPrompt');
         if (cp) { if (nearChest) { cp.classList.remove('hidden'); cp.innerHTML = keysHeld > 0 ? '🔑 Press <kbd>E</kbd> to open chest' : '🔒 Locked — find a golden key'; } else cp.classList.add('hidden'); }
 
-        // keep sun shadow centered on the active focus, and widen its frustum when zoomed out in god mode
-        const fX = mode === 'god' ? godTarget.x : player.position.x, fY = mode === 'god' ? godTarget.y : player.position.y, fZ = mode === 'god' ? godTarget.z : player.position.z;
-        sun.position.set(fX + 80, fY + 150, fZ + 50);
-        sun.target.position.set(fX, fY, fZ);
-        const shHalf = mode === 'god' ? Math.min(300, 90 + godDist * 1.05) : 120;
-        if (Math.abs(sun.shadow.camera.right - shHalf) > 0.5) { const sc2 = sun.shadow.camera; sc2.left = -shHalf; sc2.right = shHalf; sc2.top = shHalf; sc2.bottom = -shHalf; sc2.updateProjectionMatrix(); }
+        const fX = mode === 'god' ? godTarget.x : player.position.x;
+        const fY = mode === 'god' ? godTarget.y : player.position.y;
+        const fZ = mode === 'god' ? godTarget.z : player.position.z;
+        const shHalf = mode === 'god' ? Math.min(300, 90 + godDist * 1.05) : SHADOW_HALF_FPS;
+        setShadowFocus(fX, fY, fZ, shHalf);
 
         updateEnemies(dt, t);
         updateWildlife(dt, t);   // birds circle overhead; rabbits + deer roam and flee
