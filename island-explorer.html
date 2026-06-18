@@ -2488,7 +2488,8 @@
         if (!inMainMenu) showPauseMenu();
       }
 
-      function requestGamePointerLock() {
+      function requestGamePointerLock(options = {}) {
+        const showMenuWhilePending = options.showMenuWhilePending ?? menuOverlayVisible();
         if (pointerLockPending) return;
         if (document.pointerLockElement === canvas) {
           _hideOverlays();
@@ -2505,8 +2506,13 @@
         const requestId = ++pointerLockRequestId;
         _hideOverlays();
         setPausedState(true);
-        overlay.classList.remove('hide');
-        overlay.style.display = 'flex';
+        if (showMenuWhilePending) {
+          overlay.classList.remove('hide');
+          overlay.style.display = 'flex';
+        } else {
+          overlay.classList.add('hide');
+          overlay.style.display = 'none';
+        }
 
         const result = canvas.requestPointerLock();
         if (result && typeof result.catch === 'function') {
@@ -2528,6 +2534,7 @@
           setPausedState(true);
         } else {
           // Stay paused until pointerlockchange confirms the mouse is actually locked.
+          // Keep the menu visible only when resuming from the pause/start menu itself.
           requestGamePointerLock();
         }
       }
