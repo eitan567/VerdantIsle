@@ -1378,6 +1378,8 @@
       <button data-t="bush">🌿 Bush</button>
       <button data-t="house">🏠 House</button>
       <button data-t="crystal">💎 Crystal</button>
+      <button data-t="key">🔑 Key</button>
+      <button data-t="chest">🧰 Chest</button>
       <button data-t="erase">❌ Erase</button>
       <div class="sep"></div>
       <button data-act="save">💾 Save</button>
@@ -3379,6 +3381,75 @@
         _eul.set(rx || 0, 0, rz || 0); const dir = new THREE.Vector3(0, 1, 0).applyEuler(_eul);
         return { x: px + dir.x * len, y: py + dir.y * len, z: pz + dir.z * len };
       }
+      function branchTip(px, py, pz, len, rz, rx) {
+        _eul.set(rx || 0, 0, rz || 0);
+        const dir = new THREE.Vector3(0, 1, 0).applyEuler(_eul);
+        return { x: px + dir.x * len, y: py + dir.y * len, z: pz + dir.z * len };
+      }
+      function addTrunkSegment(list, px, py, pz, len, r0, r1, rz, rx) {
+        list.push({ x: px, y: py, z: pz, len, r0, r1, rz: rz || 0, rx: rx || 0 });
+        return branchTip(px, py, pz, len, rz, rx);
+      }
+      function mergeBufferGeometries(geos) {
+        const pos = [], nor = [], idx = [];
+        let offset = 0;
+        for (let g = 0; g < geos.length; g++) {
+          const geo = geos[g];
+          const p = geo.attributes.position.array;
+          const n = geo.attributes.normal ? geo.attributes.normal.array : null;
+          for (let i = 0; i < p.length; i++) pos.push(p[i]);
+          if (n) for (let i = 0; i < n.length; i++) nor.push(n[i]);
+          if (geo.index) {
+            const id = geo.index.array;
+            for (let i = 0; i < id.length; i++) idx.push(id[i] + offset);
+          } else {
+            for (let i = 0; i < geo.attributes.position.count; i++) idx.push(offset + i);
+          }
+          offset += geo.attributes.position.count;
+        }
+        const out = new THREE.BufferGeometry();
+        out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        if (nor.length === pos.length) out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+        else out.computeVertexNormals();
+        out.setIndex(idx);
+        out.computeBoundingSphere();
+        return out;
+      }
+      function makeBranchingTrunk(segments) {
+        const geos = [];
+        const matrix = new THREE.Matrix4();
+        const quat = new THREE.Quaternion();
+        const scale = new THREE.Vector3(1, 1, 1);
+        const seenJoints = [];
+        function addJoint(x, y, z, r) {
+          for (let i = 0; i < seenJoints.length; i++) {
+            const j = seenJoints[i];
+            if (Math.hypot(j.x - x, j.y - y, j.z - z) < 0.04) { if (r <= j.r) return; break; }
+          }
+          seenJoints.push({ x, y, z, r });
+          const joint = new THREE.DodecahedronGeometry(r * 1.08, 0);
+          joint.scale(1.0, 0.86, 1.0);
+          joint.translate(x, y, z);
+          geos.push(joint);
+        }
+        for (let i = 0; i < segments.length; i++) {
+          const s = segments[i];
+          const limb = new THREE.CylinderGeometry(s.r1, s.r0, s.len, 7, 1, true);
+          limb.translate(0, s.len / 2, 0);
+          _eul.set(s.rx, 0, s.rz);
+          quat.setFromEuler(_eul);
+          matrix.compose(new THREE.Vector3(s.x, s.y, s.z), quat, scale);
+          limb.applyMatrix4(matrix);
+          geos.push(limb);
+          const tip = branchTip(s.x, s.y, s.z, s.len, s.rz, s.rx);
+          addJoint(s.x, s.y, s.z, s.r0);
+          addJoint(tip.x, tip.y, tip.z, s.r1);
+        }
+        const mesh = new THREE.Mesh(mergeBufferGeometries(geos), bM.trunk);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        useFrontShadowFaces(mesh.material);
+        return mesh;
+      }
       // a foliage CLUSTER = several faceted icosahedrons of varied size/shade clumped at a branch tip
       function foliage(g, x, y, z, scale, mainMat) {
         const blobs = [[0, 0.1, 0, 1.0], [0.6, 0.0, 0.25, 0.6], [-0.55, 0.05, -0.2, 0.55], [0.15, 0.6, -0.1, 0.62], [-0.2, 0.45, 0.35, 0.5]];
@@ -3410,28 +3481,34 @@
       function makeTreeModel(kind) {
         const g = new THREE.Group();
         if (kind === 'tree_s') {            // SMALL — flared base, forked, leafy crowns ON the branch tips
-          const a = branch(g, 0, 0, 0, 0.7, 0.5, 0.32, 0.06, 0, bM.barkDark);
-          const t = branch(g, a.x, a.y, a.z, 1.7, 0.3, 0.2, -0.05);
-          const r = branch(g, t.x, t.y, t.z, 1.25, 0.17, 0.1, 0.6, 0.16);
-          const l = branch(g, t.x, t.y, t.z, 1.15, 0.16, 0.09, -0.55, -0.14);
+          const segs = [];
+          const a = addTrunkSegment(segs, 0, 0, 0, 0.7, 0.5, 0.32, 0.06, 0);
+          const t = addTrunkSegment(segs, a.x, a.y, a.z, 1.7, 0.3, 0.2, -0.05, 0);
+          const r = addTrunkSegment(segs, t.x, t.y, t.z, 1.25, 0.17, 0.1, 0.6, 0.16);
+          const l = addTrunkSegment(segs, t.x, t.y, t.z, 1.15, 0.16, 0.09, -0.55, -0.14);
+          g.add(makeBranchingTrunk(segs));
           foliage(g, r.x, r.y, r.z, 1.35, bM.canopyA);
           foliage(g, l.x, l.y, l.z, 1.0, bM.canopyB);
           foliage(g, t.x, t.y + 0.45, t.z, 1.15, bM.canopyA);
         } else if (kind === 'tree_m') {     // MEDIUM — Y-fork into 3 limbs, each ending in a leafy crown
-          const a = branch(g, 0, 0, 0, 0.8, 0.55, 0.36, 0.07, 0, bM.barkDark);
-          const t = branch(g, a.x, a.y, a.z, 2.1, 0.34, 0.22, -0.05);
-          const r = branch(g, t.x, t.y, t.z, 1.9, 0.22, 0.13, 0.52, 0.18);
-          const l = branch(g, t.x, t.y, t.z, 1.5, 0.2, 0.12, -0.74, -0.18);
-          const c = branch(g, t.x, t.y, t.z, 1.3, 0.18, 0.1, 0.06, -0.04);
+          const segs = [];
+          const a = addTrunkSegment(segs, 0, 0, 0, 0.8, 0.55, 0.36, 0.07, 0);
+          const t = addTrunkSegment(segs, a.x, a.y, a.z, 2.1, 0.34, 0.22, -0.05, 0);
+          const r = addTrunkSegment(segs, t.x, t.y, t.z, 1.9, 0.22, 0.13, 0.52, 0.18);
+          const l = addTrunkSegment(segs, t.x, t.y, t.z, 1.5, 0.2, 0.12, -0.74, -0.18);
+          const c = addTrunkSegment(segs, t.x, t.y, t.z, 1.3, 0.18, 0.1, 0.06, -0.04);
+          g.add(makeBranchingTrunk(segs));
           foliage(g, r.x, r.y, r.z, 1.7, bM.canopyA);
           foliage(g, l.x, l.y, l.z, 1.1, bM.canopyB);
           foliage(g, c.x, c.y, c.z, 1.3, bM.canopyA);
         } else if (kind === 'tree_l') {     // LARGE — thick bent trunk, 3 big limbs, each with its own crown
-          const a = branch(g, 0, 0, 0, 1.0, 0.72, 0.46, 0.05, 0, bM.barkDark);
-          const t = branch(g, a.x, a.y, a.z, 2.4, 0.44, 0.27, -0.04);
-          const c = branch(g, t.x, t.y, t.z, 2.0, 0.26, 0.16, 0.1, 0.05);
-          const r = branch(g, t.x, t.y, t.z, 1.8, 0.22, 0.13, 0.64, 0.2);
-          const l = branch(g, t.x, t.y, t.z, 1.7, 0.2, 0.12, -0.66, -0.2);
+          const segs = [];
+          const a = addTrunkSegment(segs, 0, 0, 0, 1.0, 0.72, 0.46, 0.05, 0);
+          const t = addTrunkSegment(segs, a.x, a.y, a.z, 2.4, 0.44, 0.27, -0.04, 0);
+          const c = addTrunkSegment(segs, t.x, t.y, t.z, 2.0, 0.26, 0.16, 0.1, 0.05);
+          const r = addTrunkSegment(segs, t.x, t.y, t.z, 1.8, 0.22, 0.13, 0.64, 0.2);
+          const l = addTrunkSegment(segs, t.x, t.y, t.z, 1.7, 0.2, 0.12, -0.66, -0.2);
+          g.add(makeBranchingTrunk(segs));
           foliage(g, c.x, c.y, c.z, 2.05, bM.canopyA);
           foliage(g, r.x, r.y, r.z, 1.3, bM.canopyB);
           foliage(g, l.x, l.y, l.z, 1.3, bM.canopyA);
@@ -3491,6 +3568,21 @@
           const tot = document.getElementById('total'); if (tot) tot.textContent = crystals.length;
           return m;
         }
+        if (type === 'key') {
+          const key = spawnKey(x, z, h);
+          key.mesh.userData.type = 'key';
+          key.mesh.userData.key = key;
+          placed.push(key.mesh);
+          return key.mesh;
+        }
+        if (type === 'chest') {
+          const chest = makeChest(x, z, Math.random() * 6.28, h);
+          chest.group.userData.type = 'chest';
+          chest.group.userData.chest = chest;
+          chest.group.userData.collider = chest.collider;
+          placed.push(chest.group);
+          return chest.group;
+        }
         if (type === 'house' && worldMakeHouse) {   // same enterable, furnished, collidable house as the village
           const gh = worldMakeHouse(x, z, h, Math.random() * 6.28); normalizeShadowCastingMaterials(gh); gh.userData.type = 'house'; placed.push(gh); return gh;
         }
@@ -3499,19 +3591,37 @@
         else if (type === 'rock') {
           const s = 0.7 + Math.random() * 1.7;
           bm(Math.random() < 0.5 ? bG.rock : bG.rock2, bM.rock, g, 0, s * 0.3, 0, s, s * (0.6 + Math.random() * 0.5), s);
-          colliders.push({ x, z, r: s * 0.7 });
+          const collider = { x, z, r: s * 0.7 };
+          colliders.push(collider);
+          g.userData.collider = collider;
         }
         else if (type === 'bush') { const s = 0.8 + Math.random() * 0.6; bm(bG.ball, bM.bush, g, 0, 0.7 * s, 0, s * 0.55, s * 0.5, s * 0.55); bm(bG.ball, bM.bush, g, 0.5 * s, 0.6 * s, 0.2 * s, s * 0.38, s * 0.36, s * 0.38); bm(bG.ball, bM.bush, g, -0.45 * s, 0.62 * s, -0.2 * s, s * 0.34, s * 0.32, s * 0.34); }
         g.userData.type = type; placed.push(g); return g;
       }
-      function eraseNear(x, z) { let bi = -1, bd = 8; for (let i = 0; i < placed.length; i++) { const p = placed[i], d = Math.hypot(p.position.x - x, p.position.z - z); if (d < bd) { bd = d; bi = i; } } if (bi >= 0) { const p = placed[bi]; if (p.userData.type === 'house') { for (let j = houses.length - 1; j >= 0; j--) if (Math.abs(houses[j].x - p.position.x) < 0.5 && Math.abs(houses[j].z - p.position.z) < 0.5) houses.splice(j, 1); } scene.remove(p); placed.splice(bi, 1); } }
+      function removeFromArray(arr, item) { const i = arr.indexOf(item); if (i >= 0) arr.splice(i, 1); }
+      function removePlacedObject(p) {
+        if (!p) return;
+        const type = p.userData.type;
+        if (type === 'house') {
+          for (let j = houses.length - 1; j >= 0; j--) if (Math.abs(houses[j].x - p.position.x) < 0.5 && Math.abs(houses[j].z - p.position.z) < 0.5) houses.splice(j, 1);
+        }
+        if (type === 'crystal') {
+          for (let j = crystals.length - 1; j >= 0; j--) if (crystals[j].mesh === p) crystals.splice(j, 1);
+          const tot = document.getElementById('total'); if (tot) tot.textContent = crystals.length;
+        }
+        if (type === 'key' && p.userData.key) removeFromArray(keysArr, p.userData.key);
+        if (type === 'chest' && p.userData.chest) removeFromArray(chests, p.userData.chest);
+        if (p.userData.collider) removeFromArray(colliders, p.userData.collider);
+        scene.remove(p);
+      }
+      function eraseNear(x, z) { let bi = -1, bd = 8; for (let i = 0; i < placed.length; i++) { const p = placed[i], d = Math.hypot(p.position.x - x, p.position.z - z); if (d < bd) { bd = d; bi = i; } } if (bi >= 0) { const p = placed[bi]; removePlacedObject(p); placed.splice(bi, 1); } }
       function placeAtCursor() { if (!lastHit) return; if (tool === 'erase') eraseNear(lastHit.x, lastHit.z); else buildAt(tool, lastHit.x, lastHit.z); }
       function selectTool(t) {
         tool = t; document.querySelectorAll('#builderbar button[data-t]').forEach(b => b.classList.toggle('sel', b.dataset.t === t));
         const tb = document.getElementById('treebar'); if (tb) tb.classList.toggle('hidden', !(t === 'tree' && mode === 'god'));
         if (t !== 'tree' && ghost) ghost.visible = false;
       }
-      function clearBuild() { while (placed.length) { scene.remove(placed.pop()); } }
+      function clearBuild() { while (placed.length) removePlacedObject(placed.pop()); }
       function saveBuild() { try { localStorage.setItem('vi_build', JSON.stringify(placed.map(p => ({ t: p.userData.type, k: p.userData.kind, x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2) })))); } catch (e) { } }
       function loadBuild() { try { const a = JSON.parse(localStorage.getItem('vi_build')); if (!a) return; clearBuild(); a.forEach(o => buildAt(o.t, o.x, o.z, o.k)); } catch (e) { } }
 
@@ -3598,7 +3708,7 @@
           return;
         }
         if (mode === 'god' && !paused && !anyOverlayOpen()) {
-          const map = { Digit1: 'tree', Digit2: 'rock', Digit3: 'bush', Digit4: 'house', Digit5: 'crystal', Digit6: 'erase' }; if (map[e.code]) selectTool(map[e.code]);
+          const map = { Digit1: 'tree', Digit2: 'rock', Digit3: 'bush', Digit4: 'house', Digit5: 'crystal', Digit6: 'key', Digit7: 'chest', Digit8: 'erase' }; if (map[e.code]) selectTool(map[e.code]);
           if (tool === 'tree') { if (e.code === 'Comma') cycleTree(-1); if (e.code === 'Period') cycleTree(1); }
         }
       });
@@ -3682,7 +3792,15 @@
         const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.13), _goldMat); t2.position.set(0, -0.42, 0.08); g.add(t2);
         g.children.forEach(c => c.castShadow = true); return g;
       }
-      function spawnKey(x, z, h) { const yy = (h !== undefined ? h : heightAt(x, z)) + 1.3; const m = makeKeyMesh(); m.position.set(x, yy, z); scene.add(m); keysArr.push({ mesh: m, baseY: yy, got: false }); }
+      function spawnKey(x, z, h) {
+        const yy = (h !== undefined ? h : heightAt(x, z)) + 1.3;
+        const m = makeKeyMesh();
+        m.position.set(x, yy, z);
+        scene.add(m);
+        const key = { mesh: m, baseY: yy, got: false };
+        keysArr.push(key);
+        return key;
+      }
       function makeChest(x, z, rot, y) {
         const g = new THREE.Group(); g.position.set(x, (y !== undefined ? y : heightAt(x, z)), z); g.rotation.y = rot || 0; scene.add(g);
         const tw = 0.12;
@@ -3700,7 +3818,12 @@
         // treasure piled on the floor inside — hidden once the chest is opened and looted
         const pile = new THREE.Group(); pile.position.set(0, 0.14, 0); g.add(pile);
         for (const p of [[-0.22, 0.08, 0.13], [0.18, -0.08, 0.12], [0.0, 0.16, 0.11], [0.26, 0.14, 0.1], [-0.24, -0.16, 0.1], [0.06, -0.04, 0.12]]) { const m = new THREE.Mesh(new THREE.SphereGeometry(p[2], 6, 5), _goldMat); m.position.set(p[0], p[2] * 0.6, p[1]); pile.add(m); }
-        const c = { lid, pile, x, z, y: (y !== undefined ? y : heightAt(x, z)), opened: false, openAmt: 0 }; chests.push(c); colliders.push({ x, z, r: 0.85 }); return c;
+        const collider = { x, z, r: 0.85 };
+        const c = { group: g, lid, pile, x, z, y: (y !== undefined ? y : heightAt(x, z)), opened: false, openAmt: 0, collider };
+        chests.push(c);
+        colliders.push(collider);
+        normalizeShadowCastingMaterials(g);
+        return c;
       }
       // a chest inside every cottage, plus a few hidden outdoors
       for (let i = 0; i < houses.length; i++) { const H = houses[i], lx = 1.7, lz = -2.3; const cx = H.x + Math.cos(H.rot) * lx + Math.sin(H.rot) * lz, cz = H.z - Math.sin(H.rot) * lx + Math.cos(H.rot) * lz; makeChest(cx, cz, H.rot, H.y + 1.1); }
