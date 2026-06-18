@@ -1665,6 +1665,7 @@
       const DEF_FOG = { color: new THREE.Color(0xb9cad8), near: 340, far: 980 }; // restored when not underwater
 
       const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, 1000);
+      const menuTransitionCam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, 1000);
 
       /* player rig: yaw on player, pitch on camera (child) */
       const player = new THREE.Object3D();
@@ -2462,10 +2463,102 @@
       let suppressNextUnlockPauseMenu = false;
       let delayedPointerLockTimer = 0;
       // Give the browser a short gap after ESC before trying to relock from Continue.
-      const CONTINUE_RELOCK_DELAY_MS = 250;
+      const CONTINUE_RELOCK_DELAY_MS = 1000;
+      const MENU_CAMERA_OUT_MS = 720;
+      const MENU_CAMERA_IN_MS = Math.max(720, CONTINUE_RELOCK_DELAY_MS + 260);
+      const MENU_ORBIT_LOOK_AT = new THREE.Vector3(0, 4, 0);
+      const menuCameraTransition = {
+        mode: 'idle',
+        startedAt: 0,
+        duration: 0,
+        fromPos: new THREE.Vector3(),
+        toPos: new THREE.Vector3(),
+        currentPos: new THREE.Vector3(),
+        fromQuat: new THREE.Quaternion(),
+        toQuat: new THREE.Quaternion(),
+        currentQuat: new THREE.Quaternion()
+      };
 
       function hasGamePointerLock() {
         return document.pointerLockElement === canvas;
+      }
+
+      function menuCameraTransitionActive() {
+        return menuCameraTransition.mode !== 'idle';
+      }
+
+      function easeMenuCamera(t) {
+        t = Math.max(0, Math.min(1, t));
+        return t * t * (3 - 2 * t);
+      }
+
+      function captureGameCameraPose(outPos, outQuat) {
+        camera.updateMatrixWorld(true);
+        camera.getWorldPosition(outPos);
+        camera.getWorldQuaternion(outQuat);
+      }
+
+      function setOrbitMenuPose(timeSeconds, outPos, outQuat) {
+        const orbitRadius = 130;
+        const orbitSpeed = 0.045;
+        const orbitAngle = timeSeconds * orbitSpeed;
+        const camX = Math.sin(orbitAngle) * orbitRadius;
+        const camZ = Math.cos(orbitAngle) * orbitRadius;
+        const camY = Math.max(32, heightAt(camX, camZ) + 36);
+        outPos.set(camX, camY, camZ);
+        menuTransitionCam.position.copy(outPos);
+        menuTransitionCam.lookAt(MENU_ORBIT_LOOK_AT);
+        outQuat.copy(menuTransitionCam.quaternion);
+      }
+
+      function setMenuTransitionCamera(pos, quat) {
+        menuTransitionCam.position.copy(pos);
+        menuTransitionCam.quaternion.copy(quat);
+        menuTransitionCam.updateMatrixWorld(true);
+      }
+
+      function beginPauseCameraTransition() {
+        if (menuCameraTransition.mode === 'toOrbit' || menuCameraTransition.mode === 'orbit') return;
+        menuCameraTransition.mode = 'toOrbit';
+        menuCameraTransition.startedAt = performance.now();
+        menuCameraTransition.duration = MENU_CAMERA_OUT_MS;
+        captureGameCameraPose(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+        setOrbitMenuPose(performance.now() * 0.001, menuCameraTransition.toPos, menuCameraTransition.toQuat);
+        setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+      }
+
+      function beginResumeCameraTransition() {
+        menuCameraTransition.mode = 'fromOrbit';
+        menuCameraTransition.startedAt = performance.now();
+        menuCameraTransition.duration = MENU_CAMERA_IN_MS;
+        setOrbitMenuPose(performance.now() * 0.001, menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+        captureGameCameraPose(menuCameraTransition.toPos, menuCameraTransition.toQuat);
+        setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+      }
+
+      function cancelMenuCameraTransition() {
+        menuCameraTransition.mode = 'idle';
+      }
+
+      function updateMenuCameraTransition() {
+        const modeNow = menuCameraTransition.mode;
+        if (modeNow === 'idle') return null;
+        if (modeNow === 'orbit') {
+          setOrbitMenuPose(performance.now() * 0.001, menuCameraTransition.currentPos, menuCameraTransition.currentQuat);
+          setMenuTransitionCamera(menuCameraTransition.currentPos, menuCameraTransition.currentQuat);
+          return menuTransitionCam;
+        }
+
+        const elapsed = performance.now() - menuCameraTransition.startedAt;
+        const t = easeMenuCamera(elapsed / menuCameraTransition.duration);
+        menuCameraTransition.currentPos.lerpVectors(menuCameraTransition.fromPos, menuCameraTransition.toPos, t);
+        menuCameraTransition.currentQuat.slerpQuaternions(menuCameraTransition.fromQuat, menuCameraTransition.toQuat, t);
+        setMenuTransitionCamera(menuCameraTransition.currentPos, menuCameraTransition.currentQuat);
+
+        if (t >= 1) {
+          menuCameraTransition.mode = modeNow === 'toOrbit' ? 'orbit' : 'idle';
+        }
+        return menuTransitionCam;
       }
 
       function clearDelayedPointerLockTimer() {
@@ -2482,6 +2575,7 @@
       function showPauseMenu() {
         clearInputState();
         if (!inMainMenu) {
+          beginPauseCameraTransition();
           document.getElementById('startupButtons').classList.add('hidden-group');
           document.getElementById('pausedButtons').classList.remove('hidden-group');
         }
@@ -2611,6 +2705,7 @@
         suppressNextUnlockPauseMenu = false;
         _hideOverlays();
         hideMenuOverlayNow();
+        beginResumeCameraTransition();
         setPausedState(false);
         scheduleGamePointerLock(CONTINUE_RELOCK_DELAY_MS);
       }
@@ -2887,7 +2982,7 @@
         document.removeEventListener('mouseup', onMouseUp);
       }
       let pitch = 0, yaw = 0, locked = false;
-      document.addEventListener('mousemove', e => { if (!locked) return; yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022; pitch = Math.max(-1.3, Math.min(1.3, pitch)); });
+      document.addEventListener('mousemove', e => { if (!locked || menuCameraTransitionActive()) return; yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022; pitch = Math.max(-1.3, Math.min(1.3, pitch)); });
       const overlay = document.getElementById('overlay');
       /* ---- procedural audio: ambient music + ocean wave ambience + SFX (Web Audio, no files) ---- */
       let _actx = null, _master = null, _mGain = null, _ambGain = null, _sfxGain = null, _mTimer = null, musicOn = true, _musicStarted = false, _volume = 0.9, currentBiome = 'Meadow';
@@ -3037,6 +3132,7 @@
       document.getElementById('btnEndGame').addEventListener('click', (e) => {
         e.stopPropagation();
         clearDelayedPointerLockTimer();
+        cancelMenuCameraTransition();
         pointerLockPending = false;
         keepPlayingOnPointerLockFailure = false;
         suppressNextUnlockPauseMenu = false;
@@ -3108,7 +3204,7 @@
       });
 
       // click the scene to (re)grab the mouse
-      canvas.addEventListener('click', () => { if (paused || inMainMenu) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { if (!delayedPointerLockTimer) requestGamePointerLock({ showMenuWhilePending: false, resumeImmediately: true, keepPlayingOnFailure: true }); } else { attack(); } });
+      canvas.addEventListener('click', () => { if (paused || inMainMenu || menuCameraTransitionActive()) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { if (!delayedPointerLockTimer) requestGamePointerLock({ showMenuWhilePending: false, resumeImmediately: true, keepPlayingOnFailure: true }); } else { attack(); } });
 
       document.addEventListener('pointerlockchange', () => {
         const wasLocked = locked;
@@ -3704,6 +3800,12 @@
           return;
         }
 
+        const transitionCamera = updateMenuCameraTransition();
+        if (transitionCamera) {
+          renderer.render(scene, transitionCamera);
+          return;
+        }
+
         if (paused) { renderer.render(scene, mode === 'god' ? godCam : camera); return; }   // menu open: freeze the world, keep showing it
 
         // god / builder camera takes over when active
@@ -3889,7 +3991,7 @@
         if (score === crystals.length) { const s = document.getElementById('score'); s.innerHTML = '<div class="big" style="color:#7fe7c4">All found! 🎉</div>'; }
       }
 
-      addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); godCam.aspect = innerWidth / innerHeight; godCam.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+      addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); menuTransitionCam.aspect = innerWidth / innerHeight; menuTransitionCam.updateProjectionMatrix(); godCam.aspect = innerWidth / innerHeight; godCam.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
       /* ============================================================
          LIVE "LOOK & LIGHTING" CONTROLS (sliders)
