@@ -902,20 +902,59 @@
     @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;600&display=swap');
 
     .menu-card {
-      background: url('./menu_bg.png') no-repeat center center;
-      background-size: 100% 100%;
+      background-image: 
+        url('./menu_bg_top.png'),
+        url('./menu_bg_bot.png');
+      background-position: 
+        top center,
+        bottom center;
+      background-repeat: 
+        no-repeat,
+        no-repeat;
+      background-size: 
+        100% 250px,
+        100% 140px;
       width: 480px;
-      height: 640px;
+      height: 760px;
       display: flex;
       flex-direction: column;
       align-items: center;
       position: relative;
       font-family: 'Outfit', sans-serif;
       z-index: 21;
-      padding-top: 240px;
-      padding-left: 62px;
-      padding-right: 62px;
+      padding-top: 280px;
+      padding-left: 60px;
+      padding-right: 60px;
       box-sizing: border-box;
+      transition: transform 0.2s ease;
+    }
+
+    .menu-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 250px;
+      bottom: 140px;
+      background-image: url('./menu_bg_mid.png');
+      background-repeat: repeat-y;
+      background-size: 100% auto;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Responsive scaling for smaller viewport heights */
+    @media (max-height: 780px) {
+      .menu-card {
+        transform: scale(0.85);
+        transform-origin: center;
+      }
+    }
+    @media (max-height: 660px) {
+      .menu-card {
+        transform: scale(0.72);
+        transform-origin: center;
+      }
     }
 
     .hidden-group {
@@ -923,10 +962,7 @@
     }
 
     .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      width: 100%;
+      display: contents;
     }
 
     .menu-buttons {
@@ -934,14 +970,20 @@
       flex-direction: column;
       gap: 8px;
       width: 100%;
+      position: relative;
+      z-index: 1;
     }
 
     .menu-btn {
-      width: 260px;
-      aspect-ratio: 532 / 163;
-      background-size: 100% 100%;
-      background-repeat: no-repeat;
-      background-position: center;
+      width: 100%;
+      height: 56px;
+      padding-left: var(--left-w);
+      padding-right: var(--right-w);
+      background-repeat: no-repeat, no-repeat, repeat-x;
+      background-position: left center, right center, left center;
+      background-size: var(--left-w) 100%, var(--right-w) 100%, auto 100%;
+      background-clip: border-box, border-box, content-box;
+      background-origin: border-box, border-box, content-box;
       background-color: transparent;
       border: none;
       cursor: pointer;
@@ -949,7 +991,7 @@
       margin: 0 auto;
       outline: none;
       transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-      padding: 0;
+      box-sizing: border-box;
     }
 
     .menu-btn:hover:not(.locked) {
@@ -969,54 +1011,110 @@
       display: none !important;
     }
 
-    /* Button Images */
+    /* Button Images (using dynamic left/right sliced files and width variables) */
     #play {
-      background-image: url('./tight_crop_png/single_player_normal.png');
+      --left-w: 163px;
+      --right-w: 21px;
+      background-image: 
+        url('./tight_crop_png/single_player_normal_left.png'),
+        url('./tight_crop_png/single_player_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #play:hover:not(.locked) {
-      background-image: url('./tight_crop_png/single_player_hover.png');
+      background-image: 
+        url('./tight_crop_png/single_player_hover_left.png'),
+        url('./tight_crop_png/single_player_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     #btnMultiplayer {
-      background-image: url('./tight_crop_png/multiplayer_normal.png');
+      --left-w: 163px;
+      --right-w: 21px;
+      background-image: 
+        url('./tight_crop_png/multiplayer_normal_left.png'),
+        url('./tight_crop_png/multiplayer_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #btnMultiplayer:hover:not(.locked) {
-      background-image: url('./tight_crop_png/multiplayer_hover.png');
+      background-image: 
+        url('./tight_crop_png/multiplayer_hover_left.png'),
+        url('./tight_crop_png/multiplayer_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     #btnContinue {
-      background-image: url('./tight_crop_png/continue_normal.png');
+      --left-w: 147px;
+      --right-w: 37px;
+      background-image: 
+        url('./tight_crop_png/continue_normal_left.png'),
+        url('./tight_crop_png/continue_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #btnContinue:hover:not(.locked) {
-      background-image: url('./tight_crop_png/continue_hover.png');
+      background-image: 
+        url('./tight_crop_png/continue_hover_left.png'),
+        url('./tight_crop_png/continue_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     #btnEndGame {
-      background-image: url('./tight_crop_png/end_game_normal.png');
+      --left-w: 153px;
+      --right-w: 29px;
+      background-image: 
+        url('./tight_crop_png/end_game_normal_left.png'),
+        url('./tight_crop_png/end_game_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #btnEndGame:hover:not(.locked) {
-      background-image: url('./tight_crop_png/end_game_hover.png');
+      background-image: 
+        url('./tight_crop_png/end_game_hover_left.png'),
+        url('./tight_crop_png/end_game_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     #btnSettings {
-      background-image: url('./tight_crop_png/settings_normal.png');
+      --left-w: 139px;
+      --right-w: 44px;
+      background-image: 
+        url('./tight_crop_png/settings_normal_left.png'),
+        url('./tight_crop_png/settings_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #btnSettings:hover:not(.locked) {
-      background-image: url('./tight_crop_png/settings_hover.png');
+      background-image: 
+        url('./tight_crop_png/settings_hover_left.png'),
+        url('./tight_crop_png/settings_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     #btnHelp {
-      background-image: url('./tight_crop_png/help_normal.png');
+      --left-w: 114px;
+      --right-w: 70px;
+      background-image: 
+        url('./tight_crop_png/help_normal_left.png'),
+        url('./tight_crop_png/help_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #btnHelp:hover:not(.locked) {
-      background-image: url('./tight_crop_png/help_hover.png');
+      background-image: 
+        url('./tight_crop_png/help_hover_left.png'),
+        url('./tight_crop_png/help_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     #btnExit {
-      background-image: url('./tight_crop_png/exit_normal.png');
+      --left-w: 106px;
+      --right-w: 75px;
+      background-image: 
+        url('./tight_crop_png/exit_normal_left.png'),
+        url('./tight_crop_png/exit_normal_right.png'),
+        url('./tight_crop_png/ext_normal.png');
     }
     #btnExit:hover:not(.locked) {
-      background-image: url('./tight_crop_png/exit_hover.png');
+      background-image: 
+        url('./tight_crop_png/exit_hover_left.png'),
+        url('./tight_crop_png/exit_hover_right.png'),
+        url('./tight_crop_png/ext_hover.png');
     }
 
     .btn-icon {
@@ -1024,13 +1122,15 @@
     }
 
     .loading-status {
-      margin-top: 24px;
+      margin-top: 8px;
       font-size: 12px;
       color: #7fe7c4;
       text-transform: uppercase;
       letter-spacing: 1px;
       text-align: center;
       min-height: 18px;
+      position: relative;
+      z-index: 1;
     }
 
     /* Bottom Info Bar */
