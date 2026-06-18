@@ -2518,6 +2518,7 @@
       let keepPlayingOnPointerLockFailure = false;
       let suppressNextUnlockPauseMenu = false;
       let suppressBuildUnlockPauseMenu = false;
+      let pausedFromBuildMode = false;
       let delayedPointerLockTimer = 0;
       // Give the browser a short gap after ESC before trying to relock from Continue.
       const CONTINUE_RELOCK_DELAY_MS = 1000;
@@ -2584,6 +2585,18 @@
         setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
       }
 
+      function beginPauseCameraTransitionFromCamera(sourceCamera) {
+        if (menuCameraTransition.mode === 'toOrbit' || menuCameraTransition.mode === 'orbit') return;
+        menuCameraTransition.mode = 'toOrbit';
+        menuCameraTransition.startedAt = performance.now();
+        menuCameraTransition.duration = MENU_CAMERA_OUT_MS;
+        sourceCamera.updateMatrixWorld(true);
+        sourceCamera.getWorldPosition(menuCameraTransition.fromPos);
+        sourceCamera.getWorldQuaternion(menuCameraTransition.fromQuat);
+        setOrbitMenuPose(performance.now() * 0.001, menuCameraTransition.toPos, menuCameraTransition.toQuat);
+        setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+      }
+
       function beginResumeCameraTransition() {
         menuCameraTransition.mode = 'fromOrbit';
         menuCameraTransition.startedAt = performance.now();
@@ -2601,6 +2614,17 @@
         sourceCamera.getWorldPosition(menuCameraTransition.fromPos);
         sourceCamera.getWorldQuaternion(menuCameraTransition.fromQuat);
         captureGameCameraPose(menuCameraTransition.toPos, menuCameraTransition.toQuat);
+        setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+      }
+
+      function beginResumeCameraTransitionToCamera(targetCamera) {
+        menuCameraTransition.mode = 'fromOrbitToBuild';
+        menuCameraTransition.startedAt = performance.now();
+        menuCameraTransition.duration = MENU_CAMERA_OUT_MS;
+        setOrbitMenuPose(performance.now() * 0.001, menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
+        targetCamera.updateMatrixWorld(true);
+        targetCamera.getWorldPosition(menuCameraTransition.toPos);
+        targetCamera.getWorldQuaternion(menuCameraTransition.toQuat);
         setMenuTransitionCamera(menuCameraTransition.fromPos, menuCameraTransition.fromQuat);
       }
 
@@ -2642,6 +2666,7 @@
 
       function showPauseMenu() {
         clearInputState();
+        pausedFromBuildMode = false;
         if (!inMainMenu) {
           beginPauseCameraTransition();
           document.getElementById('startupButtons').classList.add('hidden-group');
@@ -2783,6 +2808,14 @@
         suppressBuildUnlockPauseMenu = false;
         _hideOverlays();
         hideMenuOverlayNow();
+        if (pausedFromBuildMode) {
+          pausedFromBuildMode = false;
+          clearInputState();
+          setPausedState(false);
+          setMode('god', { preserveGodTarget: true });
+          beginResumeCameraTransitionToCamera(godCam);
+          return;
+        }
         beginResumeCameraTransition();
         setPausedState(false);
         scheduleGamePointerLock(CONTINUE_RELOCK_DELAY_MS);
@@ -2862,6 +2895,9 @@
             } else {
               closeSettingsPanel();
             }
+          } else if (mode === 'god' && !inMainMenu) {
+            e.preventDefault();
+            pauseFromBuildMode();
           }
           // Keep relock tied to the next Continue click; ESC is the browser's unlock gesture.
         }
@@ -3221,6 +3257,7 @@
         keepPlayingOnPointerLockFailure = false;
         suppressNextUnlockPauseMenu = false;
         suppressBuildUnlockPauseMenu = false;
+        pausedFromBuildMode = false;
         inMainMenu = true;
         paused = false;
         if (mode === 'god') setMode('fps');
@@ -3681,7 +3718,7 @@
         if (hit.length) { cursor.visible = true; lastHit = hit[0].point.clone(); updateCursorRing(lastHit.x, lastHit.z); } else cursor.visible = false;
         if (tool === 'tree' && ghost && hit.length) { ghost.visible = true; ghost.position.copy(hit[0].point); } else if (ghost) ghost.visible = false;
       }
-      function setMode(m) {
+      function setMode(m, options = {}) {
         mode = m;
         document.getElementById('builderbar').classList.toggle('hidden', m !== 'god');
         document.getElementById('modeTag').textContent = m === 'god' ? 'BUILD' : 'EXPLORE';
@@ -3690,7 +3727,11 @@
         cursor.visible = false;
         const tb = document.getElementById('treebar'); if (tb) tb.classList.toggle('hidden', !(m === 'god' && tool === 'tree'));
         if (ghost && m !== 'god') ghost.visible = false;
-        if (m === 'god') { godTarget.set(player.position.x, 0, player.position.z); godCam.aspect = innerWidth / innerHeight; godCam.updateProjectionMatrix(); }
+        if (m === 'god') {
+          if (!options.preserveGodTarget) godTarget.set(player.position.x, 0, player.position.z);
+          godCam.aspect = innerWidth / innerHeight;
+          godCam.updateProjectionMatrix();
+        }
       }
       function enterBuildMode() {
         if (inMainMenu || paused || anyOverlayOpen() || menuCameraTransitionActive()) return;
@@ -3698,6 +3739,7 @@
         pointerLockPending = false;
         keepPlayingOnPointerLockFailure = false;
         suppressNextUnlockPauseMenu = false;
+        pausedFromBuildMode = false;
         _hideOverlays();
         hideMenuOverlayNow();
         cancelMenuCameraTransition();
@@ -3715,6 +3757,7 @@
         keepPlayingOnPointerLockFailure = false;
         suppressNextUnlockPauseMenu = false;
         suppressBuildUnlockPauseMenu = false;
+        pausedFromBuildMode = false;
         _hideOverlays();
         hideMenuOverlayNow();
         clearInputState();
@@ -3722,6 +3765,26 @@
         beginResumeCameraTransitionFromCamera(godCam);
         setMode('fps');
         scheduleGamePointerLock(CONTINUE_RELOCK_DELAY_MS);
+      }
+      function pauseFromBuildMode() {
+        if (mode !== 'god' || inMainMenu || anyOverlayOpen() || menuCameraTransitionActive()) return;
+        clearDelayedPointerLockTimer();
+        pointerLockPending = false;
+        keepPlayingOnPointerLockFailure = false;
+        suppressNextUnlockPauseMenu = false;
+        suppressBuildUnlockPauseMenu = false;
+        pausedFromBuildMode = true;
+        _hideOverlays();
+        hideMenuOverlayNow();
+        clearInputState();
+        beginPauseCameraTransitionFromCamera(godCam);
+        setMode('fps');
+        document.getElementById('startupButtons').classList.add('hidden-group');
+        document.getElementById('pausedButtons').classList.remove('hidden-group');
+        overlay.classList.remove('hide');
+        overlay.style.display = 'flex';
+        syncMenuOverlayChrome();
+        setPausedState(true);
       }
       addEventListener('keydown', e => {
         if (typing()) return;
