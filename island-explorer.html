@@ -1354,7 +1354,8 @@
     <div class="panel" id="quests"></div>
     <div id="modeTag">EXPLORE</div>
     <div class="panel" id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> sprint ·
-      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>C</kbd> chat · <kbd>O</kbd> settings · <kbd>T</kbd> view ·
+      <kbd>Space</kbd> jump · <kbd>Click</kbd> attack · <kbd>E</kbd> open · <kbd>I</kbd> bag · <kbd>C</kbd> chat ·
+      <kbd>O</kbd> settings · <kbd>T</kbd> view ·
       <kbd>G</kbd> build · <kbd>Esc</kbd> pause
     </div>
     <div class="panel" id="combat">❤ <b id="hpNum">100</b> &nbsp; ⚔ <b id="kills">0</b> &nbsp; 🔑 <b id="keysNum">0</b>
@@ -2457,6 +2458,22 @@
       let closingOverlay = false;
       let pointerLockPending = false;
       let pointerLockRequestId = 0;
+      let keepPlayingOnPointerLockFailure = false;
+      let suppressNextUnlockPauseMenu = false;
+      let delayedPointerLockTimer = 0;
+      // Give the browser a short gap after ESC before trying to relock from Continue.
+      const CONTINUE_RELOCK_DELAY_MS = 250;
+
+      function hasGamePointerLock() {
+        return document.pointerLockElement === canvas;
+      }
+
+      function clearDelayedPointerLockTimer() {
+        if (delayedPointerLockTimer) {
+          clearTimeout(delayedPointerLockTimer);
+          delayedPointerLockTimer = 0;
+        }
+      }
 
       function clearInputState() {
         for (const code in keys) keys[code] = false;
@@ -2481,19 +2498,66 @@
         });
       }
 
+      function hideMenuOverlayNow() {
+        overlay.classList.add('hide');
+        overlay.style.display = 'none';
+      }
+
       function handlePointerLockFailure() {
-        if (document.pointerLockElement === canvas) return;
+        if (hasGamePointerLock()) return;
         pointerLockPending = false;
+        if (!paused) {
+          keepPlayingOnPointerLockFailure = false;
+          suppressNextUnlockPauseMenu = false;
+          _hideOverlays();
+          hideMenuOverlayNow();
+          return;
+        }
+        if (keepPlayingOnPointerLockFailure) {
+          keepPlayingOnPointerLockFailure = false;
+          _hideOverlays();
+          hideMenuOverlay();
+          setPausedState(false);
+          return;
+        }
         _hideOverlays();
         if (!inMainMenu) showPauseMenu();
+      }
+
+      function tryRequestPointerLock(requestId) {
+        if (!pointerLockPending || pointerLockRequestId !== requestId || hasGamePointerLock()) return;
+
+        let result;
+        try {
+          if (typeof canvas.focus === 'function') {
+            if (!canvas.hasAttribute('tabindex')) canvas.tabIndex = -1;
+            canvas.focus({ preventScroll: true });
+          }
+          result = canvas.requestPointerLock();
+        } catch (err) {
+          handlePointerLockFailure();
+          return;
+        }
+
+        if (result && typeof result.catch === 'function') {
+          result.catch(handlePointerLockFailure);
+        } else {
+          setTimeout(() => {
+            if (pointerLockPending && pointerLockRequestId === requestId && !hasGamePointerLock()) {
+              handlePointerLockFailure();
+            }
+          }, 1200);
+        }
       }
 
       function requestGamePointerLock(options = {}) {
         const showMenuWhilePending = options.showMenuWhilePending ?? menuOverlayVisible();
         if (pointerLockPending) return;
-        if (document.pointerLockElement === canvas) {
+        if (hasGamePointerLock()) {
           _hideOverlays();
           hideMenuOverlay();
+          keepPlayingOnPointerLockFailure = false;
+          suppressNextUnlockPauseMenu = false;
           setPausedState(false);
           return;
         }
@@ -2504,8 +2568,10 @@
 
         pointerLockPending = true;
         const requestId = ++pointerLockRequestId;
+        keepPlayingOnPointerLockFailure = !!options.keepPlayingOnFailure;
+        suppressNextUnlockPauseMenu = !!options.keepPlayingOnFailure;
         _hideOverlays();
-        setPausedState(true);
+        setPausedState(!options.resumeImmediately);
         if (showMenuWhilePending) {
           overlay.classList.remove('hide');
           overlay.style.display = 'flex';
@@ -2514,29 +2580,39 @@
           overlay.style.display = 'none';
         }
 
-        const result = canvas.requestPointerLock();
-        if (result && typeof result.catch === 'function') {
-          result.catch(handlePointerLockFailure);
-        } else {
-          setTimeout(() => {
-            if (pointerLockPending && pointerLockRequestId === requestId && document.pointerLockElement !== canvas) {
-              handlePointerLockFailure();
-            }
-          }, 1200);
-        }
+        tryRequestPointerLock(requestId);
       }
 
-      function resumeGame() {
+      function scheduleGamePointerLock(delayMs) {
+        clearDelayedPointerLockTimer();
+        delayedPointerLockTimer = setTimeout(() => {
+          delayedPointerLockTimer = 0;
+          if (inMainMenu || paused || anyOverlayOpen() || hasGamePointerLock()) return;
+          requestGamePointerLock({ showMenuWhilePending: false, resumeImmediately: true, keepPlayingOnFailure: true });
+        }, delayMs);
+      }
+
+      function resumeGame(options = {}) {
         if (inMainMenu) {
           _hideOverlays();
           overlay.classList.remove('hide');
           overlay.style.display = 'flex';
           setPausedState(true);
         } else {
-          // Stay paused until pointerlockchange confirms the mouse is actually locked.
-          // Keep the menu visible only when resuming from the pause/start menu itself.
-          requestGamePointerLock();
+          // Default panels stay paused until pointerlockchange confirms lock.
+          // Continue can pass options to resume immediately and hide the pause menu.
+          requestGamePointerLock(options);
         }
+      }
+
+      function continueFromPauseMenu() {
+        pointerLockPending = false;
+        keepPlayingOnPointerLockFailure = false;
+        suppressNextUnlockPauseMenu = false;
+        _hideOverlays();
+        hideMenuOverlayNow();
+        setPausedState(false);
+        scheduleGamePointerLock(CONTINUE_RELOCK_DELAY_MS);
       }
 
       function closeSettingsPanel() {
@@ -2610,11 +2686,7 @@
               closeSettingsPanel();
             }
           }
-          // NOTE: We intentionally do NOT call resumeGame() when the pause menu
-          // overlay is showing (Continue/End Game buttons). The browser blocks
-          // requestPointerLock() for ~1.5s after an Escape-initiated unlock,
-          // so attempting it here wastes the user gesture and causes the Continue
-          // button to sometimes require a double-click.
+          // Keep relock tied to the next Continue click; ESC is the browser's unlock gesture.
         }
       });
 
@@ -2954,15 +3026,20 @@
           try { window.close(); } catch (err) { }
         }, 1000);
       });
-      document.getElementById('btnContinue').addEventListener('click', (e) => {
-        e.stopPropagation();
+      document.addEventListener('click', (e) => {
+        const target = e.target instanceof Element ? e.target.closest('#btnContinue') : null;
+        if (!target) return;
         e.preventDefault();
-        resumeGame(); // uses fallback if pointer lock is rejected by browser
-      });
+        continueFromPauseMenu();
+      }, true);
 
       // End Current Game
       document.getElementById('btnEndGame').addEventListener('click', (e) => {
         e.stopPropagation();
+        clearDelayedPointerLockTimer();
+        pointerLockPending = false;
+        keepPlayingOnPointerLockFailure = false;
+        suppressNextUnlockPauseMenu = false;
         inMainMenu = true;
         paused = false;
         pitch = 0;
@@ -3031,12 +3108,16 @@
       });
 
       // click the scene to (re)grab the mouse
-      canvas.addEventListener('click', () => { if (paused || inMainMenu) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { requestGamePointerLock(); } else { attack(); } });
+      canvas.addEventListener('click', () => { if (paused || inMainMenu) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { if (!delayedPointerLockTimer) requestGamePointerLock({ showMenuWhilePending: false, resumeImmediately: true, keepPlayingOnFailure: true }); } else { attack(); } });
 
       document.addEventListener('pointerlockchange', () => {
-        locked = document.pointerLockElement === canvas;
+        const wasLocked = locked;
+        locked = hasGamePointerLock();
         pointerLockPending = false;
         if (locked) {
+          clearDelayedPointerLockTimer();
+          keepPlayingOnPointerLockFailure = false;
+          suppressNextUnlockPauseMenu = false;
           _hideOverlays();
           hideMenuOverlay();
           if (!inMainMenu) {
@@ -3044,6 +3125,18 @@
           }
         } else {
           if (!inMainMenu) {
+            if (suppressNextUnlockPauseMenu && !wasLocked) {
+              suppressNextUnlockPauseMenu = false;
+              _hideOverlays();
+              hideMenuOverlayNow();
+              setPausedState(false);
+              return;
+            }
+            keepPlayingOnPointerLockFailure = false;
+            suppressNextUnlockPauseMenu = false;
+            if (!wasLocked) {
+              return;
+            }
             if (!anyOverlayOpen() && !closingOverlay) {
               showPauseMenu();
             } else {
