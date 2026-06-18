@@ -2862,7 +2862,7 @@
       document.getElementById('btnContinue').addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        canvas.requestPointerLock();
+        canvas.requestPointerLock(); // request pointer lock to continue game
       });
 
       // End Current Game
