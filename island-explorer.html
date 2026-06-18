@@ -200,12 +200,54 @@
       background: rgba(8, 16, 28, .8);
     }
 
-    .ai-tts { display: inline-block; cursor: pointer; background: none; border: none; font-size: 14px; margin-left: 6px; opacity: .55; transition: opacity .2s; vertical-align: middle; padding: 0; }
-    .ai-tts:hover { opacity: 1; }
-    .ai-tts.speaking { opacity: 1; animation: tts-pulse 0.8s ease-in-out infinite alternate; }
-    @keyframes tts-pulse { from { transform: scale(1); } to { transform: scale(1.25); } }
-    #aiAutoTts { cursor: pointer; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 6px; color: #8fa3b8; font-size: 13px; padding: 2px 6px; margin-right: 4px; transition: color .2s, border-color .2s; }
-    #aiAutoTts.on { color: #7fe7c4; border-color: rgba(127,231,196,.4); }
+    .ai-tts {
+      display: inline-block;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-size: 14px;
+      margin-left: 6px;
+      opacity: .55;
+      transition: opacity .2s;
+      vertical-align: middle;
+      padding: 0;
+    }
+
+    .ai-tts:hover {
+      opacity: 1;
+    }
+
+    .ai-tts.speaking {
+      opacity: 1;
+      animation: tts-pulse 0.8s ease-in-out infinite alternate;
+    }
+
+    @keyframes tts-pulse {
+      from {
+        transform: scale(1);
+      }
+
+      to {
+        transform: scale(1.25);
+      }
+    }
+
+    #aiAutoTts {
+      cursor: pointer;
+      background: rgba(255, 255, 255, .08);
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 6px;
+      color: #8fa3b8;
+      font-size: 13px;
+      padding: 2px 6px;
+      margin-right: 4px;
+      transition: color .2s, border-color .2s;
+    }
+
+    #aiAutoTts.on {
+      color: #7fe7c4;
+      border-color: rgba(127, 231, 196, .4);
+    }
 
     #aiChat {
       position: fixed;
@@ -278,6 +320,7 @@
       direction: rtl;
       text-align: right;
     }
+
     #aiLog .hebrew-rtl .ai-tts {
       margin-left: 0;
       margin-right: 6px;
@@ -627,6 +670,7 @@
       outline: none;
       cursor: pointer;
     }
+
     #sliders select:hover {
       border-color: rgba(255, 255, 255, .25);
     }
@@ -902,16 +946,16 @@
     @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;600&display=swap');
 
     .menu-card {
-      background-image: 
+      background-image:
         url('./menu_bg_top.png'),
         url('./menu_bg_bot.png');
-      background-position: 
+      background-position:
         top center,
         bottom center;
-      background-repeat: 
+      background-repeat:
         no-repeat,
         no-repeat;
-      background-size: 
+      background-size:
         100% 250px,
         100% 140px;
       width: 480px;
@@ -922,7 +966,7 @@
       position: relative;
       font-family: 'Outfit', sans-serif;
       z-index: 21;
-      padding-top: 280px;
+      padding-top: 260px;
       padding-left: 60px;
       padding-right: 60px;
       box-sizing: border-box;
@@ -950,6 +994,7 @@
         transform-origin: center;
       }
     }
+
     @media (max-height: 660px) {
       .menu-card {
         transform: scale(0.72);
@@ -1015,13 +1060,14 @@
     #play {
       --left-w: 163px;
       --right-w: 21px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/single_player_normal_left.png'),
         url('./tight_crop_png/single_player_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #play:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/single_player_hover_left.png'),
         url('./tight_crop_png/single_player_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1030,13 +1076,14 @@
     #btnMultiplayer {
       --left-w: 163px;
       --right-w: 21px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/multiplayer_normal_left.png'),
         url('./tight_crop_png/multiplayer_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #btnMultiplayer:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/multiplayer_hover_left.png'),
         url('./tight_crop_png/multiplayer_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1045,13 +1092,14 @@
     #btnContinue {
       --left-w: 147px;
       --right-w: 37px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/continue_normal_left.png'),
         url('./tight_crop_png/continue_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #btnContinue:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/continue_hover_left.png'),
         url('./tight_crop_png/continue_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1060,13 +1108,14 @@
     #btnEndGame {
       --left-w: 153px;
       --right-w: 29px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/end_game_normal_left.png'),
         url('./tight_crop_png/end_game_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #btnEndGame:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/end_game_hover_left.png'),
         url('./tight_crop_png/end_game_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1075,13 +1124,14 @@
     #btnSettings {
       --left-w: 139px;
       --right-w: 44px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/settings_normal_left.png'),
         url('./tight_crop_png/settings_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #btnSettings:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/settings_hover_left.png'),
         url('./tight_crop_png/settings_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1090,13 +1140,14 @@
     #btnHelp {
       --left-w: 114px;
       --right-w: 70px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/help_normal_left.png'),
         url('./tight_crop_png/help_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #btnHelp:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/help_hover_left.png'),
         url('./tight_crop_png/help_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1105,13 +1156,14 @@
     #btnExit {
       --left-w: 106px;
       --right-w: 75px;
-      background-image: 
+      background-image:
         url('./tight_crop_png/exit_normal_left.png'),
         url('./tight_crop_png/exit_normal_right.png'),
         url('./tight_crop_png/ext_normal.png');
     }
+
     #btnExit:hover:not(.locked) {
-      background-image: 
+      background-image:
         url('./tight_crop_png/exit_hover_left.png'),
         url('./tight_crop_png/exit_hover_right.png'),
         url('./tight_crop_png/ext_hover.png');
@@ -1122,15 +1174,19 @@
     }
 
     .loading-status {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #7fe7c4;
+      margin-top: 10px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      color: #ffe9a8;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
       text-align: center;
       min-height: 18px;
       position: relative;
       z-index: 1;
+      opacity: 0.85;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
     }
 
     /* Bottom Info Bar */
@@ -1243,11 +1299,32 @@
       line-height: 1.5;
     }
 
-    #loading {
-      color: #8be9c9;
+    #helpCloseBtn {
+      background: #7fe7c4;
+      color: #0c1c18;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-family: 'Outfit', sans-serif;
       font-size: 14px;
-      margin-top: 18px;
-      min-height: 18px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 20px;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(127, 231, 196, 0.2);
+    }
+
+    #helpCloseBtn:hover {
+      background: #a3f0d5;
+      box-shadow: 0 6px 20px rgba(127, 231, 196, 0.3);
+      transform: translateY(-1px);
+    }
+
+    #helpCloseBtn:active {
+      transform: translateY(1px);
     }
   </style>
 </head>
@@ -1303,7 +1380,8 @@
     <div id="aiBtn" title="Talk to the island spirit">💬</div>
 
     <div id="aiChat" class="hidden">
-      <div id="aiHead"><span>🔮 Sage — island spirit</span><span><button id="aiAutoTts" title="Auto-read responses">🔇</button><button id="aiClose">✕</button></span></div>
+      <div id="aiHead"><span>🔮 Sage — island spirit</span><span><button id="aiAutoTts"
+            title="Auto-read responses">🔇</button><button id="aiClose">✕</button></span></div>
       <div id="aiLog"></div>
       <div id="aiInputRow">
         <input id="aiInput" type="text" placeholder="Ask Sage anything…" autocomplete="off">
@@ -1313,59 +1391,59 @@
   </div>
 
   <div id="settingsModal" class="hidden">
-      <div class="modalCard">
-        <div class="modalHead"><span>⚙ Settings</span><button id="settingsClose">✕</button></div>
-        <div id="sliders">
-          <div class="setCols">
-            <div class="setCol">
-              <div class="setSec">Display</div>
-              <div class="row"><label>Color depth <b id="vSat">115%</b></label><input type="range" id="sSat" min="50"
-                  max="220" value="115"></div>
-              <div class="row"><label>Contrast <b id="vCon">105%</b></label><input type="range" id="sCon" min="80"
-                  max="160" value="105"></div>
-              <div class="row"><label>Brightness <b id="vBri">100%</b></label><input type="range" id="sBri" min="60"
-                  max="140" value="100"></div>
-              <div class="setSec">Audio</div>
-              <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
-                  max="100" value="90"></div>
-              <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
-              <div class="setSec">AI Spirit Model</div>
-              <div class="row">
-                <select id="sAiModel">
-                  <option value="llama">Llama 3.1 8B (Fast, English)</option>
-                  <option value="minimax">MiniMax M3 (Best for Hebrew)</option>
-                  <option value="diffusiongemma">DiffusionGemma 26B (Thinking)</option>
-                </select>
-              </div>
-            </div>
-            <div class="setCol">
-              <div class="setSec">Lighting</div>
-              <div class="row"><label>Sun strength <b id="vSun">1.40</b></label><input type="range" id="sSun" min="0"
-                  max="260" value="140"></div>
-              <div class="row"><label>Sun warmth <b id="vWar">50%</b></label><input type="range" id="sWar" min="0"
-                  max="100" value="50"></div>
-              <div class="row"><label>Sky fill <b id="vFil">50%</b></label><input type="range" id="sFil" min="0"
-                  max="160" value="50"></div>
-              <div class="setSec">Classic tree types</div>
-              <div id="classicTrees">
-                <label><input type="checkbox" data-ck="oak"> Oak</label>
-                <label><input type="checkbox" data-ck="bigoak"> Big Oak</label>
-                <label><input type="checkbox" data-ck="pine"> Pine</label>
-                <label><input type="checkbox" data-ck="birch"> Birch</label>
-                <label><input type="checkbox" data-ck="palm"> Palm</label>
-                <label><input type="checkbox" data-ck="fruit"> Fruit</label>
-              </div>
+    <div class="modalCard">
+      <div class="modalHead"><span>⚙ Settings</span><button id="settingsClose">✕</button></div>
+      <div id="sliders">
+        <div class="setCols">
+          <div class="setCol">
+            <div class="setSec">Display</div>
+            <div class="row"><label>Color depth <b id="vSat">115%</b></label><input type="range" id="sSat" min="50"
+                max="220" value="115"></div>
+            <div class="row"><label>Contrast <b id="vCon">105%</b></label><input type="range" id="sCon" min="80"
+                max="160" value="105"></div>
+            <div class="row"><label>Brightness <b id="vBri">100%</b></label><input type="range" id="sBri" min="60"
+                max="140" value="100"></div>
+            <div class="setSec">Audio</div>
+            <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
+                max="100" value="90"></div>
+            <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
+            <div class="setSec">AI Spirit Model</div>
+            <div class="row">
+              <select id="sAiModel">
+                <option value="llama">Llama 3.1 8B (Fast, English)</option>
+                <option value="minimax">MiniMax M3 (Best for Hebrew)</option>
+                <option value="diffusiongemma">DiffusionGemma 26B (Thinking)</option>
+              </select>
             </div>
           </div>
-          <div class="setFooter">
-            <button id="sSaveB">💾 Save game</button>
-            <button id="sLoadB">📂 Load game</button>
-            <button id="sApply">🌗 Day / Dusk</button>
-            <button id="sReset" class="prim">↺ Reset</button>
+          <div class="setCol">
+            <div class="setSec">Lighting</div>
+            <div class="row"><label>Sun strength <b id="vSun">1.40</b></label><input type="range" id="sSun" min="0"
+                max="260" value="140"></div>
+            <div class="row"><label>Sun warmth <b id="vWar">50%</b></label><input type="range" id="sWar" min="0"
+                max="100" value="50"></div>
+            <div class="row"><label>Sky fill <b id="vFil">50%</b></label><input type="range" id="sFil" min="0" max="160"
+                value="50"></div>
+            <div class="setSec">Classic tree types</div>
+            <div id="classicTrees">
+              <label><input type="checkbox" data-ck="oak"> Oak</label>
+              <label><input type="checkbox" data-ck="bigoak"> Big Oak</label>
+              <label><input type="checkbox" data-ck="pine"> Pine</label>
+              <label><input type="checkbox" data-ck="birch"> Birch</label>
+              <label><input type="checkbox" data-ck="palm"> Palm</label>
+              <label><input type="checkbox" data-ck="fruit"> Fruit</label>
+            </div>
           </div>
+        </div>
+        <div class="setFooter">
+          <button id="sSaveB">💾 Save game</button>
+          <button id="sLoadB">📂 Load game</button>
+          <button id="sApply">🌗 Day / Dusk</button>
+          <button id="sReset" class="prim">↺ Reset</button>
         </div>
       </div>
     </div>
+  </div>
 
   <div id="overlay">
     <div class="menu-card">
@@ -1407,7 +1485,7 @@
           <span class="btn-text">Exit</span>
         </button>
       </div>
-      
+
       <div id="loading" class="loading-status">World ready — explore the island.</div>
     </div>
 
@@ -1417,7 +1495,8 @@
         <h2>📜 Exploration Controls</h2>
         <div class="help-grid">
           <div class="help-item">
-            <span class="key-tag">W</span><span class="key-tag">A</span><span class="key-tag">S</span><span class="key-tag">D</span>
+            <span class="key-tag">W</span><span class="key-tag">A</span><span class="key-tag">S</span><span
+              class="key-tag">D</span>
             <span class="key-label">Move explorer character</span>
           </div>
           <div class="help-item">
@@ -1450,7 +1529,7 @@
           </div>
         </div>
         <p class="help-hint">Explore the island, gather all crystals, and defeat roaming slimes!</p>
-        <button id="helpCloseBtn" class="menu-btn" style="margin-top:20px; justify-content:center; width:100%;">Back to Menu</button>
+        <button id="helpCloseBtn">Back to Menu</button>
       </div>
     </div>
 
@@ -2398,12 +2477,12 @@
         requestBody.max_tokens = maxTokens;
 
         try {
-          const res = await fetch(AI_URL, { 
-            method: 'POST', 
-            headers: { 
-              'Content-Type': 'application/json', 
-              'Authorization': 'Bearer ' + apiKey 
-            }, 
+          const res = await fetch(AI_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + apiKey
+            },
             body: JSON.stringify(requestBody)
           });
           if (!res.ok) { span.textContent = '(Sage is silent — API error ' + res.status + ')'; return; }
@@ -2634,7 +2713,7 @@
         e.stopPropagation();
         toast('🚪 To exit, please close this browser tab.');
         setTimeout(() => {
-          try { window.close(); } catch(err) {}
+          try { window.close(); } catch (err) { }
         }, 1000);
       });
       // Continue Game
@@ -3275,7 +3354,7 @@
             wnor.setXYZ(i, nx * inv, inv, nz * inv);
           }
           wpos.needsUpdate = true; wnor.needsUpdate = true;
-          
+
           windUniforms.uTime.value = t;
           windUniforms.uWind.value = 0.16 + 0.14 * Math.sin(t * 0.3) + 0.07 * Math.sin(t * 0.13 + 1.0);
           const windSpd = 1.0 + windUniforms.uWind.value * 4;
