@@ -4200,6 +4200,21 @@
       loadGroundAnimalPack({ file: 'Stag.fbx', kind: 'stag', count: 5, targetSize: 4.4, walkSpeed: 2.0, runSpeed: 7.4 });
       loadGroundAnimalPack({ file: 'Horse.fbx', kind: 'horse', count: 4, targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 });
       loadGroundAnimalPack({ file: 'Deer.fbx', kind: 'deer', count: 5, targetSize: 4.1, walkSpeed: 2.1, runSpeed: 7.8, fleeDist: 22 });
+      const animalThreatTmp = { found: false, dx: 0, dz: 0, dist: Infinity };
+      function nearestEnemyThreat(x, z, range) {
+        let found = false, best = range, dx = 0, dz = 0;
+        for (let i = 0; i < enemies.length; i++) {
+          const e = enemies[i];
+          const ex = x - e.position.x, ez = z - e.position.z;
+          const d = Math.hypot(ex, ez);
+          if (d < best) { found = true; best = d; dx = ex; dz = ez; }
+        }
+        animalThreatTmp.found = found;
+        animalThreatTmp.dx = dx;
+        animalThreatTmp.dz = dz;
+        animalThreatTmp.dist = best;
+        return animalThreatTmp;
+      }
       function updateWildlife(dt, t) {
         for (let i = 0; i < birds.length; i++) {
           const b = birds[i]; b.ang += b.sp * dt;
@@ -4221,12 +4236,12 @@
         for (let i = 0; i < groundAnimals.length; i++) {
           const s = groundAnimals[i];
           s.t += dt; s.dir -= dt; s.stateT -= dt;
-          const dpx = s.g.position.x - player.position.x, dpz = s.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
+          const threat = nearestEnemyThreat(s.g.position.x, s.g.position.z, s.fleeDist);
           let sp = 0;
-          if (mode === 'fps' && pd < s.fleeDist) {
+          if (threat.found) {
             s.state = 'gallop';
             s.stateT = 1.2;
-            s.ang = Math.atan2(dpx, dpz);
+            s.ang = Math.atan2(threat.dx, threat.dz);
             sp = s.runSp;
             playAnimalAction(s, 'gallop');
           } else {
@@ -4270,9 +4285,9 @@
         }
         for (let i = 0; i < critters.length; i++) {
           const c = critters[i]; c.t += dt; c.dir -= dt;
-          const dpx = c.g.position.x - player.position.x, dpz = c.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
+          const threat = nearestEnemyThreat(c.g.position.x, c.g.position.z, 11);
           let sp = c.sp;
-          if (mode === 'fps' && pd < 11) { c.ang = Math.atan2(dpx, dpz); sp = c.sp * 2.2; }   // flee the player
+          if (threat.found) { c.ang = Math.atan2(threat.dx, threat.dz); sp = c.sp * 2.2; }
           else if (c.dir <= 0) { c.ang += (Math.random() - 0.5) * 2.0; c.dir = 2 + Math.random() * 4; }
           const nx = c.g.position.x + Math.sin(c.ang) * sp * dt, nz = c.g.position.z + Math.cos(c.ang) * sp * dt;
           if (heightAt(nx, nz) > WATER + 0.3) { c.g.position.x = nx; c.g.position.z = nz; } else c.ang += Math.PI;
@@ -4539,7 +4554,7 @@
         setShadowFocus(fX, fY, fZ, shHalf);
 
         updateEnemies(dt, t);
-        updateWildlife(dt, t);   // birds circle overhead; rabbits + deer roam and flee
+        updateWildlife(dt, t);   // birds circle overhead; ground animals roam and flee enemies
         updateLootFx(dt);        // loot icons fly from the chest to the player
         updateHouses(dt);   // open doors near the player, fade walls + light up when inside
         renderer.render(scene, mode === 'god' ? godCam : camera);
