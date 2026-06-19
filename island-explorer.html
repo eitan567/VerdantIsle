@@ -4044,7 +4044,7 @@
               action.play();
               mixer.setTime(rnd() * clip.duration);
             }
-            parrots.push({
+            const parrot = {
               g, model, mixer,
               cx: (rnd() - 0.5) * WORLD * 0.58,
               cz: (rnd() - 0.5) * WORLD * 0.58,
@@ -4055,7 +4055,10 @@
               phase: rnd() * 6.28,
               driftX: 6 + rnd() * 10,
               driftZ: 6 + rnd() * 10
-            });
+            };
+            cacheAnimalShadowMeshes(parrot);
+            parrot.shadowReceive = false;
+            parrots.push(parrot);
           }
         }, undefined, err => console.warn('Could not load Flying_Parrot_Animated.glb', err));
       })();
@@ -4175,8 +4178,11 @@
               dir: 1 + rnd() * 3,
               state: 'idle',
               stateT: 1 + rnd() * 4,
-              idlePick: rnd()
+              idlePick: rnd(),
+              simAcc: rnd() * 0.25,
+              animAcc: rnd() * 0.25
             };
+            cacheAnimalShadowMeshes(animal);
             playAnimalAction(animal, animal.idlePick < 0.34 && anim.actions.eating ? 'eating' : (animal.idlePick < 0.67 && anim.actions.headlow ? 'headlow' : 'idle'), 0);
             if (animal.mixer) animal.mixer.setTime(rnd() * 2);
             orientGroundAnimal(animal, animal.ang, 0, 1);
@@ -4187,6 +4193,42 @@
       loadGroundAnimalPack({ file: 'Stag.fbx', kind: 'stag', count: 5, targetSize: 4.4, walkSpeed: 2.0, runSpeed: 7.4 });
       loadGroundAnimalPack({ file: 'Horse.fbx', kind: 'horse', count: 4, targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 });
       loadGroundAnimalPack({ file: 'Deer.fbx', kind: 'deer', count: 5, targetSize: 4.1, walkSpeed: 2.1, runSpeed: 7.8, fleeDist: 22 });
+      const WILDLIFE_NEAR2 = 85 * 85;
+      const WILDLIFE_MID2 = 155 * 155;
+      const WILDLIFE_HIDE2 = 260 * 260;
+      const WILDLIFE_WIDE_HIDE2 = 360 * 360;
+      const WILDLIFE_SHADOW2 = 95 * 95;
+      const wildlifeFocus = new THREE.Vector3();
+      function getWildlifeFocus() {
+        if (inMainMenu) camera.getWorldPosition(wildlifeFocus);
+        else if (mode === 'god') wildlifeFocus.copy(godTarget);
+        else wildlifeFocus.copy(player.position);
+        return wildlifeFocus;
+      }
+      function cacheAnimalShadowMeshes(animal) {
+        animal.shadowMeshes = [];
+        animal.model.traverse(o => { if (o.isMesh) animal.shadowMeshes.push(o); });
+        animal.shadowOn = true;
+        animal.shadowReceive = true;
+      }
+      function setAnimalShadowing(animal, enabled) {
+        if (animal.shadowOn === enabled) return;
+        animal.shadowOn = enabled;
+        const meshes = animal.shadowMeshes || [];
+        for (let i = 0; i < meshes.length; i++) {
+          meshes[i].castShadow = enabled;
+          meshes[i].receiveShadow = enabled && animal.shadowReceive !== false;
+        }
+      }
+      function updateAnimalMixerBudgeted(animal, dt, interval, rate) {
+        if (!animal.mixer || !animal.g.visible) return;
+        animal.animAcc = (animal.animAcc || 0) + dt;
+        if (interval <= 0 || animal.animAcc >= interval) {
+          const animDt = Math.min(animal.animAcc, 0.25);
+          animal.animAcc = 0;
+          animal.mixer.update(animDt * rate);
+        }
+      }
       const animalThreatTmp = { found: false, dx: 0, dz: 0, dist: Infinity };
       function nearestEnemyThreat(x, z, range) {
         let found = false, best = range, dx = 0, dz = 0;
@@ -4203,6 +4245,8 @@
         return animalThreatTmp;
       }
       function updateWildlife(dt, t) {
+        const focus = getWildlifeFocus();
+        const hideDist2 = (inMainMenu || mode === 'god') ? WILDLIFE_WIDE_HIDE2 : WILDLIFE_HIDE2;
         for (let i = 0; i < birds.length; i++) {
           const b = birds[i]; b.ang += b.sp * dt;
           b.g.position.set(b.cx + Math.cos(b.ang) * b.r, b.hgt + Math.sin(t * 0.5 + b.fph) * 4, b.cz + Math.sin(b.ang) * b.r);
@@ -4217,12 +4261,30 @@
           const nx = p.cx + Math.cos(p.ang + 0.02) * p.r + Math.sin(t * 0.17 + p.phase) * p.driftX;
           const nz = p.cz + Math.sin(p.ang + 0.02) * p.r + Math.cos(t * 0.13 + p.phase) * p.driftZ;
           p.g.position.set(x, y, z);
+          const pdx = x - focus.x, pdz = z - focus.z, pd2 = pdx * pdx + pdz * pdz;
+          p.g.visible = pd2 < hideDist2;
+          setAnimalShadowing(p, p.g.visible && pd2 < WILDLIFE_SHADOW2);
+          if (!p.g.visible) { p.animAcc = 0; continue; }
           p.g.rotation.set(Math.sin(t * 0.65 + p.phase) * 0.08, Math.atan2(nx - x, nz - z), Math.sin(t * 0.9 + p.phase) * 0.14);
-          if (p.mixer) p.mixer.update(dt);
+          updateAnimalMixerBudgeted(p, dt, pd2 < WILDLIFE_NEAR2 ? 0 : (pd2 < WILDLIFE_MID2 ? 0.1 : 0.25), 1);
         }
         for (let i = 0; i < groundAnimals.length; i++) {
           const s = groundAnimals[i];
-          s.t += dt; s.dir -= dt; s.stateT -= dt;
+          const fdx = s.g.position.x - focus.x, fdz = s.g.position.z - focus.z, fd2 = fdx * fdx + fdz * fdz;
+          s.g.visible = fd2 < hideDist2;
+          setAnimalShadowing(s, s.g.visible && fd2 < WILDLIFE_SHADOW2);
+          if (!s.g.visible) { s.simAcc = 0; s.animAcc = 0; continue; }
+          const simInterval = fd2 < WILDLIFE_NEAR2 ? 0 : (fd2 < WILDLIFE_MID2 ? 0.12 : 0.35);
+          const animInterval = fd2 < WILDLIFE_NEAR2 ? 0 : (fd2 < WILDLIFE_MID2 ? 0.08 : 0.22);
+          const animRate = s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85;
+          s.simAcc = (s.simAcc || 0) + dt;
+          if (simInterval > 0 && s.simAcc < simInterval) {
+            updateAnimalMixerBudgeted(s, dt, animInterval, animRate);
+            continue;
+          }
+          const stepDt = simInterval > 0 ? Math.min(s.simAcc, 0.5) : dt;
+          s.simAcc = 0;
+          s.t += stepDt; s.dir -= stepDt; s.stateT -= stepDt;
           const threat = nearestEnemyThreat(s.g.position.x, s.g.position.z, s.fleeDist);
           let sp = 0;
           if (threat.found) {
@@ -4249,8 +4311,8 @@
             }
           }
           if (sp > 0) {
-            const nx = s.g.position.x + Math.sin(s.ang) * sp * dt;
-            const nz = s.g.position.z + Math.cos(s.ang) * sp * dt;
+            const nx = s.g.position.x + Math.sin(s.ang) * sp * stepDt;
+            const nz = s.g.position.z + Math.cos(s.ang) * sp * stepDt;
             if (heightAt(nx, nz) > WATER + 0.6) {
               s.g.position.x = nx; s.g.position.z = nz;
             } else {
@@ -4266,9 +4328,9 @@
             s.g.position.x = Math.max(-lim, Math.min(lim, s.g.position.x));
             s.g.position.z = Math.max(-lim, Math.min(lim, s.g.position.z));
           }
-          orientGroundAnimal(s, s.ang, 0, 0.35);
+          orientGroundAnimal(s, s.ang, 0, fd2 < WILDLIFE_NEAR2 ? 0.35 : 0.8);
           s.model.position.y = s.modelBaseY + (sp > 0 ? Math.sin((t + s.t) * 6) * 0.035 : 0);
-          if (s.mixer) s.mixer.update(dt * (s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85));
+          updateAnimalMixerBudgeted(s, dt, animInterval, s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85);
         }
         for (let i = 0; i < critters.length; i++) {
           const c = critters[i]; c.t += dt; c.dir -= dt;
