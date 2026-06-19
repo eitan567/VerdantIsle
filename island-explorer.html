@@ -4003,8 +4003,6 @@
 
         const furBrown = new THREE.MeshStandardMaterial({ color: 0x9c6b40, roughness: 0.95, flatShading: true });
         const furWhite = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.95, flatShading: true });
-        const furDeer = new THREE.MeshStandardMaterial({ color: 0xb5854c, roughness: 0.95, flatShading: true });
-        const antler = new THREE.MeshStandardMaterial({ color: 0x6b5333, roughness: 1, flatShading: true });
         function part(w, h, d, mat, x, y, z, parent) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; }
         function mkCritter(g, legs, type, sp) { const x = (rnd() - 0.5) * WORLD * 0.7, z = (rnd() - 0.5) * WORLD * 0.7; g.position.set(x, heightAt(x, z), z); return { g, legs, type, sp, ang: rnd() * 6.28, t: rnd() * 9, dir: 1 + rnd() * 3, hop: rnd() * 6.28 }; }
         function makeRabbit() {
@@ -4016,18 +4014,7 @@
           const legs = []; for (const sx of [-0.13, 0.13]) { legs.push(part(0.1, 0.22, 0.16, furBrown, sx, 0.13, -0.18, g)); legs.push(part(0.1, 0.18, 0.14, furBrown, sx, 0.13, 0.22, g)); }
           scene.add(g); return mkCritter(g, legs, 'rabbit', 4.0);
         }
-        function makeDeer() {
-          const g = new THREE.Group();
-          part(0.5, 0.6, 1.4, furDeer, 0, 1.1, 0, g);
-          const neck = part(0.3, 0.7, 0.3, furDeer, 0, 1.6, 0.7, g); neck.rotation.x = -0.5;
-          part(0.28, 0.3, 0.5, furDeer, 0, 1.95, 1.0, g);
-          part(0.05, 0.4, 0.05, antler, -0.1, 2.2, 1.0, g); part(0.05, 0.4, 0.05, antler, 0.1, 2.2, 1.0, g);
-          part(0.04, 0.22, 0.04, antler, -0.22, 2.45, 1.05, g); part(0.04, 0.22, 0.04, antler, 0.22, 2.45, 1.05, g);
-          const legs = []; for (const sx of [-0.2, 0.2]) for (const sz of [-0.5, 0.5]) legs.push(part(0.14, 1.0, 0.14, furDeer, sx, 0.5, sz, g));
-          scene.add(g); return mkCritter(g, legs, 'deer', 3.0);
-        }
         for (let i = 0; i < 10; i++) { for (let tr = 0; tr < 30; tr++) { const r = makeRabbit(); if (heightAt(r.g.position.x, r.g.position.z) > WATER + 0.5) { critters.push(r); break; } else scene.remove(r.g); } }
-        for (let i = 0; i < 6; i++) { for (let tr = 0; tr < 30; tr++) { const d = makeDeer(); if (heightAt(d.g.position.x, d.g.position.z) > WATER + 1) { critters.push(d); break; } else scene.remove(d.g); } }
       })();
       (function loadParrotFlock() {
         if (!THREE.GLTFLoader) return;
