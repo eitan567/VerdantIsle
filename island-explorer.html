@@ -3986,7 +3986,7 @@
       /* ============================================================
          WILDLIFE — circling birds, hopping rabbits, grazing deer
          ============================================================ */
-      const birds = [], critters = [], parrots = [], cats = [], stags = [];
+      const birds = [], critters = [], parrots = [], groundAnimals = [];
       (function () {
         const birdMat = new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 0.7, flatShading: true });
         function makeBird() {
@@ -4101,28 +4101,6 @@
         }
         animal.currentAction = name;
       }
-      function groundedAnimalClips(clips) {
-        return (clips || []).map(clip => {
-          const tracks = (clip.tracks || [])
-            .filter(track => !/\.position$/i.test(track.name || ''))
-            .map(track => track.clone ? track.clone() : track);
-          const grounded = new THREE.AnimationClip(clip.name, clip.duration, tracks);
-          grounded.optimize();
-          return grounded;
-        });
-      }
-      const animalGroundSnapBox = new THREE.Box3();
-      const animalGroundSnapQuat = new THREE.Quaternion();
-      const animalGroundSnapUp = new THREE.Vector3();
-      function snapModelBottomToGroupGround(animal, groundOffset = 0) {
-        animal.g.updateMatrixWorld(true);
-        animal.model.updateMatrixWorld(true);
-        animalGroundSnapBox.setFromObject(animal.model);
-        const bottom = animalGroundSnapBox.min.y;
-        if (!Number.isFinite(bottom)) return;
-        const upY = Math.max(0.2, Math.abs(animalGroundSnapUp.set(0, 1, 0).applyQuaternion(animal.g.getWorldQuaternion(animalGroundSnapQuat)).y));
-        animal.model.position.y -= (bottom - (animal.g.position.y + groundOffset)) / upY;
-      }
       const terrainNormalTmp = new THREE.Vector3();
       const terrainForwardTmp = new THREE.Vector3();
       const terrainRightTmp = new THREE.Vector3();
@@ -4149,73 +4127,19 @@
         if (smooth >= 1) g.quaternion.copy(terrainQuatTmp);
         else g.quaternion.slerp(terrainQuatTmp, Math.max(0.01, Math.min(1, smooth)));
       }
-      // (function loadCatCritters() {
-      //   if (!THREE.FBXLoader) return;
-      //   const loader = new THREE.FBXLoader();
-      //   loader.load('models/cat_rigged.fbx', fbx => {
-      //     const clips = groundedAnimalClips(fbx.animations || []);
-      //     const catFallbackMat = new THREE.MeshStandardMaterial({ color: 0x3a2a20, roughness: 0.9, flatShading: true });
-      //     fbx.traverse(o => {
-      //       if (!o.isMesh) return;
-      //       o.castShadow = true;
-      //       o.receiveShadow = true;
-      //       o.frustumCulled = false;
-      //       if (!o.material) o.material = catFallbackMat;
-      //       if (o.material) {
-      //         const mats = Array.isArray(o.material) ? o.material : [o.material];
-      //         mats.forEach(m => {
-      //           if ('roughness' in m) m.roughness = Math.max(0.7, m.roughness || 0.7);
-      //           if (m.color && !m.map) m.color.lerp(new THREE.Color(0x3a2a20), 0.25);
-      //           m.needsUpdate = true;
-      //         });
-      //       }
-      //     });
-      //     const box = new THREE.Box3().setFromObject(fbx);
-      //     const size = box.getSize(new THREE.Vector3());
-      //     const baseScale = 2.5 / Math.max(size.x || 1, size.y || 1, size.z || 1);
-      //     const cloneModel = () => THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(fbx) : fbx.clone(true);
-      //     for (let i = 0; i < 12; i++) {
-      //       let x = 0, z = 0, h = WATER + 2;
-      //       for (let tr = 0; tr < 50; tr++) {
-      //         if (i < 5) {
-      //           const a = rnd() * 6.28, d = 12 + rnd() * 48;
-      //           x = Math.sin(a) * d;
-      //           z = 30 + Math.cos(a) * d;
-      //         } else {
-      //           x = (rnd() - 0.5) * WORLD * 0.68;
-      //           z = (rnd() - 0.5) * WORLD * 0.68;
-      //         }
-      //         h = heightAt(x, z);
-      //         if (h > WATER + 1.0) break;
-      //       }
-      //       const g = new THREE.Group();
-      //       const model = cloneModel();
-      //       const scale = baseScale * (0.85 + rnd() * 0.28);
-      //       const modelBaseY = -box.min.y * scale;
-      //       model.scale.setScalar(scale);
-      //       model.position.y = modelBaseY;
-      //       g.add(model);
-      //       g.position.set(x, h, z);
-      //       scene.add(g);
-      //       const anim = makeFbxActions(model, clips, {
-      //         walk: [/walk/i, /run/i, /cat/i, /.*/],
-      //         idle: [/idle/i, /.*/]
-      //       });
-      //       Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.8 + rnd() * 0.35; });
-      //       const cat = { g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '', sp: 2.1 + rnd() * 1.4, ang: rnd() * 6.28, t: rnd() * 9, dir: 1 + rnd() * 3, bob: rnd() * 6.28 };
-      //       playAnimalAction(cat, anim.actions.idle ? 'idle' : 'walk', 0);
-      //       if (cat.mixer) cat.mixer.setTime(rnd() * 1.5);
-      //       model.position.set(0, modelBaseY, 0);
-      //       orientGroundAnimal(cat, cat.ang, 0, 1);
-      //       snapModelBottomToGroupGround(cat);
-      //       cats.push(cat);
-      //     }
-      //   }, undefined, err => console.warn('Could not load cat_rigged.fbx', err));
-      // })();
-      (function loadStagCritters() {
+      const groundAnimalClipMap = {
+        idle: [/^Idle$/i, /AnimalArmature\|Idle$/i, /Idle_2/i, /idle/i],
+        idle2: [/Idle_2/i, /^Idle$/i, /idle/i],
+        headlow: [/Idle_Headlow/i, /Headlow/i, /Eating/i, /idle/i],
+        eating: [/Eating/i, /Idle_Headlow/i, /idle/i],
+        walk: [/^Walk$/i, /AnimalArmature\|Walk/i, /walk/i],
+        gallop: [/Gallop$/i, /run/i, /Walk/i],
+        jump: [/Jump_toIdle/i, /Gallop_Jump/i, /Idle/i]
+      };
+      function loadGroundAnimalPack(cfg) {
         if (!THREE.FBXLoader) return;
         const loader = new THREE.FBXLoader();
-        loader.load('models/Stag.fbx', fbx => {
+        loader.load('models/' + cfg.file, fbx => {
           const clips = fbx.animations || [];
           fbx.traverse(o => {
             if (!o.isMesh) return;
@@ -4232,39 +4156,33 @@
           });
           const box = new THREE.Box3().setFromObject(fbx);
           const size = box.getSize(new THREE.Vector3());
-          const baseScale = 4.4 / Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const baseScale = cfg.targetSize / Math.max(size.x || 1, size.y || 1, size.z || 1);
           const cloneModel = () => THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(fbx) : fbx.clone(true);
-          for (let i = 0; i < 5; i++) {
+          for (let i = 0; i < cfg.count; i++) {
             let x = 0, z = 0, h = WATER + 2;
             for (let tr = 0; tr < 60; tr++) {
-              x = (rnd() - 0.5) * WORLD * 0.72;
-              z = (rnd() - 0.5) * WORLD * 0.72;
+              x = (rnd() - 0.5) * WORLD * (cfg.spread || 0.72);
+              z = (rnd() - 0.5) * WORLD * (cfg.spread || 0.72);
               h = heightAt(x, z);
-              if (h > WATER + 1.4) break;
+              if (h > WATER + (cfg.minGround || 1.4)) break;
             }
             const g = new THREE.Group();
             const model = cloneModel();
-            const scale = baseScale * (0.9 + rnd() * 0.18);
+            const scale = baseScale * ((cfg.scaleMin || 0.9) + rnd() * (cfg.scaleJitter || 0.18));
             const modelBaseY = -box.min.y * scale;
             model.scale.setScalar(scale);
             model.position.y = modelBaseY;
             g.add(model);
             g.position.set(x, h, z);
             scene.add(g);
-            const anim = makeFbxActions(model, clips, {
-              idle: [/^Idle$/i, /AnimalArmature\|Idle$/i, /Idle_2/i, /idle/i],
-              idle2: [/Idle_2/i, /^Idle$/i, /idle/i],
-              headlow: [/Idle_Headlow/i, /Headlow/i, /Eating/i, /idle/i],
-              eating: [/Eating/i, /Idle_Headlow/i, /idle/i],
-              walk: [/^Walk$/i, /AnimalArmature\|Walk/i, /walk/i],
-              gallop: [/Gallop$/i, /run/i, /Walk/i],
-              jump: [/Jump_toIdle/i, /Gallop_Jump/i, /Idle/i]
-            });
+            const anim = makeFbxActions(model, clips, groundAnimalClipMap);
             Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.85 + rnd() * 0.25; });
-            const stag = {
+            const animal = {
+              kind: cfg.kind,
               g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '',
-              sp: 2.0 + rnd() * 1.0,
-              runSp: 7.4 + rnd() * 1.8,
+              sp: cfg.walkSpeed + rnd() * (cfg.walkJitter || 1.0),
+              runSp: cfg.runSpeed + rnd() * (cfg.runJitter || 1.8),
+              fleeDist: cfg.fleeDist || 22,
               ang: rnd() * 6.28,
               t: rnd() * 9,
               dir: 1 + rnd() * 3,
@@ -4272,13 +4190,16 @@
               stateT: 1 + rnd() * 4,
               idlePick: rnd()
             };
-            playAnimalAction(stag, stag.idlePick < 0.34 && anim.actions.eating ? 'eating' : (stag.idlePick < 0.67 && anim.actions.headlow ? 'headlow' : 'idle'), 0);
-            if (stag.mixer) stag.mixer.setTime(rnd() * 2);
-            orientGroundAnimal(stag, stag.ang, 0, 1);
-            stags.push(stag);
+            playAnimalAction(animal, animal.idlePick < 0.34 && anim.actions.eating ? 'eating' : (animal.idlePick < 0.67 && anim.actions.headlow ? 'headlow' : 'idle'), 0);
+            if (animal.mixer) animal.mixer.setTime(rnd() * 2);
+            orientGroundAnimal(animal, animal.ang, 0, 1);
+            groundAnimals.push(animal);
           }
-        }, undefined, err => console.warn('Could not load Stag.fbx', err));
-      })();
+        }, undefined, err => console.warn('Could not load ' + cfg.file, err));
+      }
+      loadGroundAnimalPack({ file: 'Stag.fbx', kind: 'stag', count: 5, targetSize: 4.4, walkSpeed: 2.0, runSpeed: 7.4 });
+      loadGroundAnimalPack({ file: 'Horse.fbx', kind: 'horse', count: 4, targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 });
+      loadGroundAnimalPack({ file: 'Deer.fbx', kind: 'deer', count: 5, targetSize: 4.1, walkSpeed: 2.1, runSpeed: 7.8, fleeDist: 22 });
       function updateWildlife(dt, t) {
         for (let i = 0; i < birds.length; i++) {
           const b = birds[i]; b.ang += b.sp * dt;
@@ -4297,31 +4218,12 @@
           p.g.rotation.set(Math.sin(t * 0.65 + p.phase) * 0.08, Math.atan2(nx - x, nz - z), Math.sin(t * 0.9 + p.phase) * 0.14);
           if (p.mixer) p.mixer.update(dt);
         }
-        for (let i = 0; i < cats.length; i++) {
-          const c = cats[i];
-          c.t += dt; c.dir -= dt;
-          const dpx = c.g.position.x - player.position.x, dpz = c.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
-          let sp = c.sp;
-          if (mode === 'fps' && pd < 8) { c.ang = Math.atan2(dpx, dpz); sp = c.sp * 1.9; }
-          else if (c.dir <= 0) { c.ang += (Math.random() - 0.5) * 1.8; c.dir = 1.5 + Math.random() * 4; }
-          playAnimalAction(c, sp > c.sp * 1.15 || c.dir > 0.5 ? 'walk' : (c.actions.idle ? 'idle' : 'walk'));
-          const nx = c.g.position.x + Math.sin(c.ang) * sp * dt;
-          const nz = c.g.position.z + Math.cos(c.ang) * sp * dt;
-          if (heightAt(nx, nz) > WATER + 0.4) { c.g.position.x = nx; c.g.position.z = nz; } else { c.ang += Math.PI; c.dir = 0.7; }
-          const lim = WORLD * 0.5 - 4;
-          c.g.position.x = Math.max(-lim, Math.min(lim, c.g.position.x));
-          c.g.position.z = Math.max(-lim, Math.min(lim, c.g.position.z));
-          orientGroundAnimal(c, c.ang, 0, 0.45);
-          if (c.mixer) c.mixer.update(dt * Math.max(0.6, Math.min(1.8, sp / c.sp)));
-          c.model.position.set(0, c.modelBaseY + Math.sin((t + c.bob) * 8) * 0.035, 0);
-          snapModelBottomToGroupGround(c);
-        }
-        for (let i = 0; i < stags.length; i++) {
-          const s = stags[i];
+        for (let i = 0; i < groundAnimals.length; i++) {
+          const s = groundAnimals[i];
           s.t += dt; s.dir -= dt; s.stateT -= dt;
           const dpx = s.g.position.x - player.position.x, dpz = s.g.position.z - player.position.z, pd = Math.hypot(dpx, dpz);
           let sp = 0;
-          if (mode === 'fps' && pd < 22) {
+          if (mode === 'fps' && pd < s.fleeDist) {
             s.state = 'gallop';
             s.stateT = 1.2;
             s.ang = Math.atan2(dpx, dpz);
