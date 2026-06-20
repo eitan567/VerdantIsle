@@ -576,11 +576,17 @@
       width: 660px;
       max-width: 94vw;
       max-height: 92vh;
-      background: rgba(12, 20, 32, .97);
-      border: 1px solid rgba(255, 255, 255, .14);
-      border-radius: 16px;
-      padding: 20px 24px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+      overflow-y: auto;
+      background:
+        radial-gradient(130% 80% at 50% 0%, rgba(33, 92, 117, .5), rgba(0, 0, 0, 0) 62%),
+        linear-gradient(180deg, #13415a 0%, #0e3145 45%, #0a2433 100%);
+      border: 2px solid #b8954a;
+      border-radius: 18px;
+      padding: 20px 26px 24px;
+      box-shadow:
+        0 22px 64px rgba(0, 0, 0, .6),
+        inset 0 0 0 1px rgba(214, 187, 106, .35),
+        inset 0 0 44px rgba(0, 0, 0, .35);
     }
 
     .setCols {
@@ -590,14 +596,15 @@
     }
 
     .setSec {
-      font-size: 11px;
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: .8px;
       text-transform: uppercase;
-      color: #7fe7c4;
+      color: #e6c873;
       margin: 14px 0 6px;
       padding-bottom: 5px;
-      border-bottom: 1px solid rgba(127, 231, 196, .22);
+      border-bottom: 1px solid rgba(184, 149, 74, .35);
     }
 
     .setSec:first-child {
@@ -615,40 +622,83 @@
     .setFooter button {
       flex: 1;
       cursor: pointer;
-      font: inherit;
+      font-family: 'Cinzel', serif;
       font-size: 12px;
       font-weight: 600;
-      border: none;
-      border-radius: 8px;
+      letter-spacing: .4px;
+      border: 1px solid #b8954a;
+      border-radius: 9px;
       padding: 9px;
-      background: rgba(255, 255, 255, .16);
-      color: #dfeaf3;
+      background: linear-gradient(180deg, #154258 0%, #0c2c3e 100%);
+      color: #e8c66a;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+      transition: transform .12s, background .12s, border-color .12s;
+    }
+
+    .setFooter button:hover {
+      background: linear-gradient(180deg, #1c5571 0%, #0e3447 100%);
+      border-color: #e0c574;
+      transform: translateY(-1px);
+    }
+
+    .setFooter button:active {
+      transform: translateY(0);
     }
 
     .setFooter button.prim {
-      background: #7fe7c4;
-      color: #08121e;
+      background: linear-gradient(180deg, #e3c266 0%, #b8954a 100%);
+      color: #0a1822;
+      border-color: #f0d589;
+      text-shadow: none;
+    }
+
+    .setFooter button.prim:hover {
+      background: linear-gradient(180deg, #efce76 0%, #c9a356 100%);
+      border-color: #f7e3a3;
     }
 
     #settingsModal .modalHead {
+      position: relative;
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
-      font-size: 16px;
+      gap: 10px;
+      font-family: 'Cinzel', serif;
+      font-size: 23px;
       font-weight: 700;
-      color: #bfe9d6;
-      margin-bottom: 12px;
+      letter-spacing: 1px;
+      color: #cdeccf;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, .5), 0 0 18px rgba(127, 231, 196, .2);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(184, 149, 74, .5);
     }
 
     #settingsClose {
+      position: absolute;
+      right: 0;
+      top: 2px;
       cursor: pointer;
-      border: none;
-      background: rgba(255, 255, 255, .12);
-      color: #dfeaf3;
+      border: 1px solid #b8954a;
+      background: linear-gradient(180deg, #16465d, #0c2c3e);
+      color: #e8c66a;
       border-radius: 8px;
       width: 30px;
       height: 30px;
       font-size: 14px;
+      line-height: 1;
+      transition: background .12s, border-color .12s, color .12s;
+    }
+
+    #settingsClose:hover {
+      background: linear-gradient(180deg, #1d5872, #103a4e);
+      border-color: #e0c574;
+      color: #fdf3d6;
+    }
+
+    /* gold/bronze tint so emoji icons match the menu's gilded look */
+    .ui-ic {
+      filter: sepia(1) saturate(2.4) hue-rotate(2deg) brightness(1.05);
     }
 
     #sliders .row {
@@ -665,22 +715,22 @@
     }
 
     #sliders label b {
-      color: #7fe7c4;
+      color: #e6c873;
       float: right;
       font-variant-numeric: tabular-nums;
     }
 
     #sliders input[type=range] {
       width: 100%;
-      accent-color: #7fe7c4;
+      accent-color: #cca64f;
       height: 16px;
     }
 
     #sliders select {
       width: 100%;
-      background: rgba(8, 16, 28, .65);
-      border: 1px solid rgba(255, 255, 255, .16);
-      color: #bfe9d6;
+      background: linear-gradient(180deg, #123a4f, #0b2738);
+      border: 1px solid #b8954a;
+      color: #d7ecd9;
       border-radius: 8px;
       padding: 6px;
       font: inherit;
@@ -691,7 +741,18 @@
     }
 
     #sliders select:hover {
-      border-color: rgba(255, 255, 255, .25);
+      border-color: #e0c574;
+    }
+
+    #sliders select option {
+      background: #0c2c3e;
+      color: #d7ecd9;
+    }
+
+    #sliders select option:checked,
+    #sliders select option:hover {
+      background: #154258;
+      color: #e8c66a;
     }
 
     #sliders .btns {
@@ -703,19 +764,32 @@
     #sliders .btns button {
       flex: 1;
       cursor: pointer;
-      font: inherit;
+      font-family: 'Cinzel', serif;
       font-size: 12px;
-      color: #08121e;
       font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      padding: 7px;
-      background: #7fe7c4;
+      letter-spacing: .4px;
+      border: 1px solid #b8954a;
+      border-radius: 9px;
+      padding: 8px;
+      background: linear-gradient(180deg, #e3c266 0%, #b8954a 100%);
+      color: #0a1822;
+      text-shadow: none;
+      transition: transform .12s, background .12s, border-color .12s;
+    }
+
+    #sliders .btns button:hover {
+      transform: translateY(-1px);
+      border-color: #f7e3a3;
     }
 
     #sliders .btns button.alt {
-      background: rgba(255, 255, 255, .16);
-      color: #dfeaf3;
+      background: linear-gradient(180deg, #154258 0%, #0c2c3e 100%);
+      color: #e8c66a;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+    }
+
+    #sliders .btns button.alt:hover {
+      background: linear-gradient(180deg, #1c5571 0%, #0e3447 100%);
     }
 
     #classicTrees {
@@ -739,6 +813,134 @@
     #classicTrees input {
       accent-color: #7fe7c4;
       width: auto;
+    }
+
+    #wildlifeList {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+      margin: 4px 0 8px;
+    }
+
+    #wildlifeList .wildCell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #wildlifeList label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      color: #cdd9e4;
+      text-transform: none;
+      letter-spacing: 0;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    /* custom dark checkbox (also applied to the classic-tree list for consistency) */
+    #wildlifeList input[type=checkbox],
+    #classicTrees input[type=checkbox] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      flex: 0 0 auto;
+      margin: 0;
+      border: 1px solid #3a5163;
+      border-radius: 4px;
+      background: #10202b;
+      cursor: pointer;
+      position: relative;
+      transition: background .12s, border-color .12s;
+    }
+
+    #wildlifeList input[type=checkbox]:hover,
+    #classicTrees input[type=checkbox]:hover {
+      border-color: #7fe7c4;
+    }
+
+    #wildlifeList input[type=checkbox]:checked,
+    #classicTrees input[type=checkbox]:checked {
+      background: #7fe7c4;
+      border-color: #7fe7c4;
+    }
+
+    #wildlifeList input[type=checkbox]:checked::after,
+    #classicTrees input[type=checkbox]:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 4px;
+      height: 8px;
+      border: solid #0c1a22;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    /* custom dark number stepper (native spin arrows replaced) */
+    #wildlifeList .numWrap {
+      display: flex;
+      align-items: stretch;
+      height: 22px;
+      flex: 0 0 auto;
+    }
+
+    #wildlifeList input[type=number] {
+      width: 30px;
+      font-size: 12px;
+      padding: 0 4px;
+      text-align: center;
+      background: #10202b;
+      color: #cdd9e4;
+      border: 1px solid #2a3f4f;
+      border-right: none;
+      border-radius: 4px 0 0 4px;
+      -moz-appearance: textfield;
+    }
+
+    #wildlifeList input[type=number]::-webkit-inner-spin-button,
+    #wildlifeList input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    #wildlifeList .spin {
+      display: flex;
+      flex-direction: column;
+      width: 16px;
+      border: 1px solid #2a3f4f;
+      border-radius: 0 4px 4px 0;
+      overflow: hidden;
+    }
+
+    #wildlifeList .spin button {
+      flex: 1 1 0;
+      min-height: 0;
+      padding: 0;
+      border: none;
+      background: #18313f;
+      color: #9fc4d8;
+      font-size: 8px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #wildlifeList .spin button:hover {
+      background: #244a60;
+      color: #7fe7c4;
+    }
+
+    #wildlifeList .spin button + button {
+      border-top: 1px solid #2a3f4f;
     }
 
     /* cinematic vignette */
@@ -1230,13 +1432,13 @@
     }
 
     .key-tag {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(184, 149, 74, 0.12);
+      border: 1px solid rgba(184, 149, 74, 0.5);
       border-radius: 4px;
       padding: 2px 6px;
       font-family: monospace;
       font-weight: 700;
-      color: #7fe7c4;
+      color: #e8c66a;
     }
 
     .mouse-icon {
@@ -1271,12 +1473,21 @@
     }
 
     .help-card {
-      background: linear-gradient(135deg, rgba(8, 26, 24, 0.98), rgba(4, 12, 20, 0.99));
-      border: 2px solid #3d6a50;
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+      background:
+        radial-gradient(130% 80% at 50% 0%, rgba(33, 92, 117, .5), rgba(0, 0, 0, 0) 62%),
+        linear-gradient(180deg, #13415a 0%, #0e3145 45%, #0a2433 100%);
+      border: 2px solid #b8954a;
+      box-shadow:
+        0 22px 64px rgba(0, 0, 0, .6),
+        inset 0 0 0 1px rgba(214, 187, 106, .35),
+        inset 0 0 44px rgba(0, 0, 0, .35);
       border-radius: 20px;
+      position: relative;
       width: 500px;
-      padding: 40px;
+      max-width: 94vw;
+      max-height: 92vh;
+      overflow-y: auto;
+      padding: 36px 40px;
       font-family: 'Outfit', sans-serif;
       color: #dfede5;
       text-align: center;
@@ -1284,9 +1495,14 @@
 
     .help-card h2 {
       font-family: 'Cinzel', serif;
-      font-size: 28px;
-      color: #7fe7c4;
-      margin-bottom: 24px;
+      font-size: 26px;
+      letter-spacing: 1px;
+      color: #cdeccf;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, .5), 0 0 18px rgba(127, 231, 196, .2);
+      margin-bottom: 22px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(184, 149, 74, .5);
+      text-align: left;
     }
 
     .help-grid {
@@ -1319,31 +1535,25 @@
     }
 
     #helpCloseBtn {
-      background: #7fe7c4;
-      color: #0c1c18;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 24px;
-      font-family: 'Outfit', sans-serif;
-      font-size: 14px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      position: absolute;
+      right: 18px;
+      top: 18px;
       cursor: pointer;
-      width: 100%;
-      margin-top: 20px;
-      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
-      box-shadow: 0 4px 14px rgba(127, 231, 196, 0.2);
+      border: 1px solid #b8954a;
+      background: linear-gradient(180deg, #16465d, #0c2c3e);
+      color: #e8c66a;
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      font-size: 15px;
+      line-height: 1;
+      transition: background .12s, border-color .12s, color .12s;
     }
 
     #helpCloseBtn:hover {
-      background: #a3f0d5;
-      box-shadow: 0 6px 20px rgba(127, 231, 196, 0.3);
-      transform: translateY(-1px);
-    }
-
-    #helpCloseBtn:active {
-      transform: translateY(1px);
+      background: linear-gradient(180deg, #1d5872, #103a4e);
+      border-color: #e0c574;
+      color: #fdf3d6;
     }
   </style>
 </head>
@@ -1414,7 +1624,7 @@
 
   <div id="settingsModal" class="hidden">
     <div class="modalCard">
-      <div class="modalHead"><span>⚙ Settings</span><button id="settingsClose">✕</button></div>
+      <div class="modalHead"><span><span class="ui-ic">⚙</span> Settings</span><button id="settingsClose">✕</button></div>
       <div id="sliders">
         <div class="setCols">
           <div class="setCol">
@@ -1428,7 +1638,7 @@
             <div class="setSec">Audio</div>
             <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
                 max="100" value="90"></div>
-            <div class="btns"><button id="sMusic" class="alt" style="flex:1">🔊 Music: On</button></div>
+            <div class="btns"><button id="sMusic" class="alt" style="flex:1"><span class="ui-ic">🔊</span> Music: On</button></div>
             <div class="setSec">AI Spirit Model</div>
             <div class="row">
               <select id="sAiModel">
@@ -1455,13 +1665,15 @@
               <label><input type="checkbox" data-ck="palm"> Palm</label>
               <label><input type="checkbox" data-ck="fruit"> Fruit</label>
             </div>
+            <div class="setSec">Wildlife (debug)</div>
+            <div id="wildlifeList"></div>
           </div>
         </div>
         <div class="setFooter">
-          <button id="sSaveB">💾 Save game</button>
-          <button id="sLoadB">📂 Load game</button>
-          <button id="sApply">🌗 Day / Dusk</button>
-          <button id="sReset" class="prim">↺ Reset</button>
+          <button id="sSaveB"><span class="ui-ic">💾</span> Save game</button>
+          <button id="sLoadB"><span class="ui-ic">📂</span> Load game</button>
+          <button id="sApply"><span class="ui-ic">🌗</span> Day / Dusk</button>
+          <button id="sReset" class="prim"><span class="ui-ic">↺</span> Reset</button>
         </div>
       </div>
     </div>
@@ -1514,7 +1726,8 @@
     <!-- Help Modal -->
     <div id="helpModal" class="help-modal-overlay hidden-modal">
       <div class="help-card">
-        <h2>📜 Exploration Controls</h2>
+        <button id="helpCloseBtn" aria-label="Close">✕</button>
+        <h2><span class="ui-ic">📜</span> Exploration Controls</h2>
         <div class="help-grid">
           <div class="help-item">
             <span class="key-tag">W</span><span class="key-tag">A</span><span class="key-tag">S</span><span
@@ -1559,7 +1772,6 @@
           </div>
         </div>
         <p class="help-hint">Explore the island, gather all crystals, and defeat roaming slimes!</p>
-        <button id="helpCloseBtn">Back to Menu</button>
       </div>
     </div>
 
@@ -3170,7 +3382,7 @@
       function setMusic(on) {
         musicOn = on;
         if (_mGain && _actx) { _mGain.gain.cancelScheduledValues(_actx.currentTime); _mGain.gain.linearRampToValueAtTime(on ? 0.16 : 0, _actx.currentTime + 0.6); }
-        const b = document.getElementById('sMusic'); if (b) b.textContent = on ? '🔊 Music: On' : '🔇 Music: Off';
+        const b = document.getElementById('sMusic'); if (b) b.innerHTML = on ? '<span class="ui-ic">🔊</span> Music: On' : '<span class="ui-ic">🔇</span> Music: Off';
       }
       /* ---- one-shot sound effects ---- */
       function sfxCollect() {
@@ -3987,6 +4199,33 @@
          WILDLIFE — circling birds, hopping rabbits, grazing deer
          ============================================================ */
       const birds = [], critters = [], parrots = [], groundAnimals = [];
+
+      /* ---- Wildlife population control (Settings -> Wildlife debug) ----------
+         Default: nothing is spawned. The user enables individual species and
+         sets a per-species instance count, then hits "Apply wildlife". This lets
+         us isolate which model/species causes a given problem. */
+      const WILDLIFE_DEFS = [
+        { key: 'bird',   label: 'Birds',   desc: 'Procedural low-poly birds',  def: 14 },
+        { key: 'rabbit', label: 'Rabbits', desc: 'Procedural rabbits',         def: 10 },
+        { key: 'parrot', label: 'Parrots', desc: 'GLTF animated parrot flock', def: 9 },
+        { key: 'stag',   label: 'Stag',    desc: 'FBX stag (with antlers)',    def: 5 },
+        { key: 'horse',  label: 'Horse',   desc: 'FBX horse',                  def: 4 },
+        { key: 'deer',   label: 'Deer',    desc: 'FBX deer (antlerless)',      def: 5 }
+      ];
+      const wildlifeCounts = (() => {
+        const d = {};
+        WILDLIFE_DEFS.forEach(w => { d[w.key] = { on: false, n: w.def }; });
+        try {
+          const s = JSON.parse(localStorage.getItem('vi_wildlife') || 'null');
+          if (s) WILDLIFE_DEFS.forEach(w => { if (s[w.key]) d[w.key] = { on: !!s[w.key].on, n: Math.max(0, Math.min(200, s[w.key].n | 0)) }; });
+        } catch (e) {}
+        return d;
+      })();
+      function wcount(key) { const c = wildlifeCounts[key]; return c && c.on ? c.n : 0; }
+      function saveWildlifeCounts() { try { localStorage.setItem('vi_wildlife', JSON.stringify(wildlifeCounts)); } catch (e) {} }
+      function clearWildlife(arr) { for (let i = 0; i < arr.length; i++) if (arr[i].g) scene.remove(arr[i].g); arr.length = 0; }
+      let spawnBirds, spawnRabbits, spawnParrots;
+
       (function () {
         const birdMat = new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 0.7, flatShading: true });
         function makeBird() {
@@ -3999,7 +4238,7 @@
           scene.add(g);
           return { g, wl, wr, cx: (rnd() - 0.5) * WORLD * 0.7, cz: (rnd() - 0.5) * WORLD * 0.7, r: 18 + rnd() * 46, ang: rnd() * 6.28, sp: 0.22 + rnd() * 0.3, hgt: 30 + rnd() * 34, flap: 8 + rnd() * 6, fph: rnd() * 6.28 };
         }
-        for (let i = 0; i < 14; i++) birds.push(makeBird());
+        spawnBirds = function () { clearWildlife(birds); const n = wcount('bird'); for (let i = 0; i < n; i++) birds.push(makeBird()); };
 
         const furBrown = new THREE.MeshStandardMaterial({ color: 0x9c6b40, roughness: 0.95, flatShading: true });
         const furWhite = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.95, flatShading: true });
@@ -4014,54 +4253,63 @@
           const legs = []; for (const sx of [-0.13, 0.13]) { legs.push(part(0.1, 0.22, 0.16, furBrown, sx, 0.13, -0.18, g)); legs.push(part(0.1, 0.18, 0.14, furBrown, sx, 0.13, 0.22, g)); }
           scene.add(g); return mkCritter(g, legs, 'rabbit', 4.0);
         }
-        for (let i = 0; i < 10; i++) { for (let tr = 0; tr < 30; tr++) { const r = makeRabbit(); if (heightAt(r.g.position.x, r.g.position.z) > WATER + 0.5) { critters.push(r); break; } else scene.remove(r.g); } }
+        spawnRabbits = function () { clearWildlife(critters); const n = wcount('rabbit'); for (let i = 0; i < n; i++) { for (let tr = 0; tr < 30; tr++) { const r = makeRabbit(); if (heightAt(r.g.position.x, r.g.position.z) > WATER + 0.5) { critters.push(r); break; } else scene.remove(r.g); } } };
       })();
-      (function loadParrotFlock() {
-        if (!THREE.GLTFLoader) return;
-        const loader = new THREE.GLTFLoader();
-        loader.load('models/Flying_Parrot_Animated.glb', gltf => {
-          const clip = gltf.animations && gltf.animations[0];
-          gltf.scene.traverse(o => {
-            if (!o.isMesh) return;
-            o.castShadow = true;
-            o.receiveShadow = false;
-            o.frustumCulled = false;
-            if (o.material) {
-              const mats = Array.isArray(o.material) ? o.material : [o.material];
-              mats.forEach(m => { m.roughness = Math.max(0.55, m.roughness || 0.55); m.needsUpdate = true; });
-            }
-          });
-          for (let i = 0; i < 9; i++) {
-            const g = new THREE.Group();
-            const model = gltf.scene.clone(true);
-            model.scale.setScalar(0.034 + rnd() * 0.012);
-            g.add(model);
-            scene.add(g);
-            const mixer = clip ? new THREE.AnimationMixer(model) : null;
-            if (mixer) {
-              const action = mixer.clipAction(clip);
-              action.timeScale = 0.85 + rnd() * 0.5;
-              action.play();
-              mixer.setTime(rnd() * clip.duration);
-            }
-            const parrot = {
-              g, model, mixer,
-              cx: (rnd() - 0.5) * WORLD * 0.58,
-              cz: (rnd() - 0.5) * WORLD * 0.58,
-              r: 34 + rnd() * 68,
-              ang: rnd() * 6.28,
-              sp: 0.12 + rnd() * 0.16,
-              hgt: 38 + rnd() * 30,
-              phase: rnd() * 6.28,
-              driftX: 6 + rnd() * 10,
-              driftZ: 6 + rnd() * 10
-            };
-            cacheAnimalShadowMeshes(parrot);
-            parrot.shadowReceive = false;
-            parrots.push(parrot);
+      let _parrotGltf = null, _parrotLoading = false;
+      spawnParrots = function () {
+        clearWildlife(parrots);
+        const n = wcount('parrot');
+        if (n <= 0) return;
+        if (!_parrotGltf) {
+          if (_parrotLoading || !THREE.GLTFLoader) return;
+          _parrotLoading = true;
+          new THREE.GLTFLoader().load('models/Flying_Parrot_Animated.glb', gltf => {
+            gltf.scene.traverse(o => {
+              if (!o.isMesh) return;
+              o.castShadow = true;
+              o.receiveShadow = false;
+              o.frustumCulled = false;
+              if (o.material) {
+                const mats = Array.isArray(o.material) ? o.material : [o.material];
+                mats.forEach(m => { m.roughness = Math.max(0.55, m.roughness || 0.55); m.needsUpdate = true; });
+              }
+            });
+            _parrotGltf = gltf; _parrotLoading = false;
+            spawnParrots(); // re-run now that the model is cached
+          }, undefined, err => { _parrotLoading = false; console.warn('Could not load Flying_Parrot_Animated.glb', err); });
+          return;
+        }
+        const gltf = _parrotGltf, clip = gltf.animations && gltf.animations[0];
+        for (let i = 0; i < n; i++) {
+          const g = new THREE.Group();
+          const model = gltf.scene.clone(true);
+          model.scale.setScalar(0.034 + rnd() * 0.012);
+          g.add(model);
+          scene.add(g);
+          const mixer = clip ? new THREE.AnimationMixer(model) : null;
+          if (mixer) {
+            const action = mixer.clipAction(clip);
+            action.timeScale = 0.85 + rnd() * 0.5;
+            action.play();
+            mixer.setTime(rnd() * clip.duration);
           }
-        }, undefined, err => console.warn('Could not load Flying_Parrot_Animated.glb', err));
-      })();
+          const parrot = {
+            g, model, mixer,
+            cx: (rnd() - 0.5) * WORLD * 0.58,
+            cz: (rnd() - 0.5) * WORLD * 0.58,
+            r: 34 + rnd() * 68,
+            ang: rnd() * 6.28,
+            sp: 0.12 + rnd() * 0.16,
+            hgt: 38 + rnd() * 30,
+            phase: rnd() * 6.28,
+            driftX: 6 + rnd() * 10,
+            driftZ: 6 + rnd() * 10
+          };
+          cacheAnimalShadowMeshes(parrot);
+          parrot.shadowReceive = false;
+          parrots.push(parrot);
+        }
+      };
       function fbxClip(clips, patterns) {
         for (let i = 0; i < patterns.length; i++) {
           const rx = patterns[i];
@@ -4126,16 +4374,33 @@
         gallop: [/Gallop$/i, /run/i, /Walk/i],
         jump: [/Jump_toIdle/i, /Gallop_Jump/i, /Idle/i]
       };
-      function loadGroundAnimalPack(cfg) {
+      const _fbxCache = {};
+      function clearGround(kind) {
+        for (let i = groundAnimals.length - 1; i >= 0; i--) {
+          if (groundAnimals[i].kind === kind) { scene.remove(groundAnimals[i].g); groundAnimals.splice(i, 1); }
+        }
+      }
+      function spawnGroundAnimalPack(cfg) {
+        clearGround(cfg.kind);
+        const n = wcount(cfg.kind);
+        if (n <= 0) return;
+        const cached = _fbxCache[cfg.file];
+        if (cached) { _spawnGroundInstances(cfg, n, cached); return; }
         if (!THREE.FBXLoader) return;
-        const loader = new THREE.FBXLoader();
-        loader.load('models/' + cfg.file, fbx => {
+        new THREE.FBXLoader().load('models/' + cfg.file, fbx => {
           const clips = fbx.animations || [];
           fbx.traverse(o => {
             if (!o.isMesh) return;
             o.castShadow = true;
             o.receiveShadow = true;
             o.frustumCulled = false;
+            // Skinned FBX exports from these animal packs often ship with un-normalized
+            // skin weights (per-vertex weights that don't sum to 1). On certain animation
+            // poses that over-weights a single bone and flings a vertex to a far coordinate,
+            // producing the giant black "spike" triangles. Normalizing fixes it at the root.
+            if (o.isSkinnedMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.skinWeight) {
+              o.normalizeSkinWeights();
+            }
             if (o.material) {
               const mats = Array.isArray(o.material) ? o.material : [o.material];
               mats.forEach(m => {
@@ -4145,54 +4410,117 @@
             }
           });
           const box = new THREE.Box3().setFromObject(fbx);
-          const size = box.getSize(new THREE.Vector3());
-          const baseScale = cfg.targetSize / Math.max(size.x || 1, size.y || 1, size.z || 1);
-          const cloneModel = () => THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(fbx) : fbx.clone(true);
-          for (let i = 0; i < cfg.count; i++) {
-            let x = 0, z = 0, h = WATER + 2;
-            for (let tr = 0; tr < 60; tr++) {
-              x = (rnd() - 0.5) * WORLD * (cfg.spread || 0.72);
-              z = (rnd() - 0.5) * WORLD * (cfg.spread || 0.72);
-              h = heightAt(x, z);
-              if (h > WATER + (cfg.minGround || 1.4)) break;
-            }
-            const g = new THREE.Group();
-            const model = cloneModel();
-            const scale = baseScale * ((cfg.scaleMin || 0.9) + rnd() * (cfg.scaleJitter || 0.18));
-            const modelBaseY = -box.min.y * scale;
-            model.scale.setScalar(scale);
-            model.position.y = modelBaseY;
-            g.add(model);
-            g.position.set(x, h, z);
-            scene.add(g);
-            const anim = makeFbxActions(model, clips, groundAnimalClipMap);
-            Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.85 + rnd() * 0.25; });
-            const animal = {
-              kind: cfg.kind,
-              g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '',
-              sp: cfg.walkSpeed + rnd() * (cfg.walkJitter || 1.0),
-              runSp: cfg.runSpeed + rnd() * (cfg.runJitter || 1.8),
-              fleeDist: cfg.fleeDist || 22,
-              ang: rnd() * 6.28,
-              t: rnd() * 9,
-              dir: 1 + rnd() * 3,
-              state: 'idle',
-              stateT: 1 + rnd() * 4,
-              idlePick: rnd(),
-              simAcc: rnd() * 0.25,
-              animAcc: rnd() * 0.25
-            };
-            cacheAnimalShadowMeshes(animal);
-            playAnimalAction(animal, animal.idlePick < 0.34 && anim.actions.eating ? 'eating' : (animal.idlePick < 0.67 && anim.actions.headlow ? 'headlow' : 'idle'), 0);
-            if (animal.mixer) animal.mixer.setTime(rnd() * 2);
-            orientGroundAnimal(animal, animal.ang, 0, 1);
-            groundAnimals.push(animal);
-          }
+          const entry = { fbx, clips, box };
+          _fbxCache[cfg.file] = entry;
+          const want = wcount(cfg.kind); // re-read in case it changed during load
+          if (want > 0) _spawnGroundInstances(cfg, want, entry);
         }, undefined, err => console.warn('Could not load ' + cfg.file, err));
       }
-      loadGroundAnimalPack({ file: 'Stag.fbx', kind: 'stag', count: 5, targetSize: 4.4, walkSpeed: 2.0, runSpeed: 7.4 });
-      loadGroundAnimalPack({ file: 'Horse.fbx', kind: 'horse', count: 4, targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 });
-      loadGroundAnimalPack({ file: 'Deer.fbx', kind: 'deer', count: 5, targetSize: 4.1, walkSpeed: 2.1, runSpeed: 7.8, fleeDist: 22 });
+      function _spawnGroundInstances(cfg, n, entry) {
+        const fbx = entry.fbx, clips = entry.clips, box = entry.box;
+        const size = box.getSize(new THREE.Vector3());
+        const baseScale = cfg.targetSize / Math.max(size.x || 1, size.y || 1, size.z || 1);
+        const cloneModel = () => THREE.SkeletonUtils && THREE.SkeletonUtils.clone ? THREE.SkeletonUtils.clone(fbx) : fbx.clone(true);
+        for (let i = 0; i < n; i++) {
+          let x = 0, z = 0, h = WATER + 2;
+          for (let tr = 0; tr < 60; tr++) {
+            x = (rnd() - 0.5) * WORLD * (cfg.spread || 0.72);
+            z = (rnd() - 0.5) * WORLD * (cfg.spread || 0.72);
+            h = heightAt(x, z);
+            if (h > WATER + (cfg.minGround || 1.4)) break;
+          }
+          const g = new THREE.Group();
+          const model = cloneModel();
+          const scale = baseScale * ((cfg.scaleMin || 0.9) + rnd() * (cfg.scaleJitter || 0.18));
+          const modelBaseY = -box.min.y * scale;
+          model.scale.setScalar(scale);
+          model.position.y = modelBaseY;
+          g.add(model);
+          g.position.set(x, h, z);
+          scene.add(g);
+          const anim = makeFbxActions(model, clips, groundAnimalClipMap);
+          Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.85 + rnd() * 0.25; });
+          const animal = {
+            kind: cfg.kind,
+            g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '',
+            sp: cfg.walkSpeed + rnd() * (cfg.walkJitter || 1.0),
+            runSp: cfg.runSpeed + rnd() * (cfg.runJitter || 1.8),
+            fleeDist: cfg.fleeDist || 22,
+            ang: rnd() * 6.28,
+            t: rnd() * 9,
+            dir: 1 + rnd() * 3,
+            state: 'idle',
+            stateT: 1 + rnd() * 4,
+            idlePick: rnd(),
+            spd: 0,
+            simAcc: rnd() * 0.25,
+            animAcc: rnd() * 0.25
+          };
+          cacheAnimalShadowMeshes(animal);
+          playAnimalAction(animal, animal.idlePick < 0.34 && anim.actions.eating ? 'eating' : (animal.idlePick < 0.67 && anim.actions.headlow ? 'headlow' : 'idle'), 0);
+          if (animal.mixer) animal.mixer.setTime(rnd() * 2);
+          orientGroundAnimal(animal, animal.ang, 0, 1);
+          groundAnimals.push(animal);
+        }
+      }
+      const GROUND_CFGS = [
+        { file: 'Stag.fbx', kind: 'stag', targetSize: 4.4, walkSpeed: 2.0, runSpeed: 7.4 },
+        { file: 'Horse.fbx', kind: 'horse', targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 },
+        { file: 'Deer.fbx', kind: 'deer', targetSize: 4.1, walkSpeed: 2.1, runSpeed: 7.8, fleeDist: 22 }
+      ];
+      function applyWildlife() {
+        saveWildlifeCounts();
+        if (spawnBirds) spawnBirds();
+        if (spawnRabbits) spawnRabbits();
+        if (spawnParrots) spawnParrots();
+        GROUND_CFGS.forEach(spawnGroundAnimalPack);
+      }
+      // Respawn just one species (used for live edits from the UI).
+      function applyWildlifeKey(key) {
+        saveWildlifeCounts();
+        if (key === 'bird') { if (spawnBirds) spawnBirds(); }
+        else if (key === 'rabbit') { if (spawnRabbits) spawnRabbits(); }
+        else if (key === 'parrot') { if (spawnParrots) spawnParrots(); }
+        else { const cfg = GROUND_CFGS.find(c => c.kind === key); if (cfg) spawnGroundAnimalPack(cfg); }
+      }
+      function buildWildlifeUI() {
+        const host = document.getElementById('wildlifeList');
+        if (!host) return;
+        host.innerHTML = '';
+        WILDLIFE_DEFS.forEach(w => {
+          const c = wildlifeCounts[w.key];
+          const cell = document.createElement('div');
+          cell.className = 'wildCell';
+          const lbl = document.createElement('label');
+          lbl.title = w.desc;
+          const cb = document.createElement('input');
+          cb.type = 'checkbox'; cb.checked = c.on;
+          lbl.appendChild(cb);
+          lbl.appendChild(document.createTextNode(' ' + w.label));
+          const nb = document.createElement('input');
+          nb.type = 'number'; nb.min = '0'; nb.max = '200'; nb.value = c.n; nb.title = 'How many to spawn';
+          const apply = () => {
+            wildlifeCounts[w.key] = { on: cb.checked, n: Math.max(0, Math.min(200, parseInt(nb.value, 10) || 0)) };
+            applyWildlifeKey(w.key);
+          };
+          const step = d => { nb.value = Math.max(0, Math.min(200, (parseInt(nb.value, 10) || 0) + d)); apply(); };
+          const spin = document.createElement('div');
+          spin.className = 'spin';
+          const up = document.createElement('button'); up.type = 'button'; up.textContent = '▲'; up.tabIndex = -1; up.addEventListener('click', () => step(1));
+          const down = document.createElement('button'); down.type = 'button'; down.textContent = '▼'; down.tabIndex = -1; down.addEventListener('click', () => step(-1));
+          spin.appendChild(up); spin.appendChild(down);
+          const numWrap = document.createElement('div');
+          numWrap.className = 'numWrap';
+          numWrap.appendChild(nb); numWrap.appendChild(spin);
+          cb.addEventListener('change', apply);
+          nb.addEventListener('change', apply);
+          cell.appendChild(lbl);
+          cell.appendChild(numWrap);
+          host.appendChild(cell);
+        });
+      }
+      buildWildlifeUI();
+      applyWildlife();
       const WILDLIFE_NEAR2 = 85 * 85;
       const WILDLIFE_MID2 = 155 * 155;
       const WILDLIFE_HIDE2 = 260 * 260;
@@ -4274,52 +4602,55 @@
           s.g.visible = fd2 < hideDist2;
           setAnimalShadowing(s, s.g.visible && fd2 < WILDLIFE_SHADOW2);
           if (!s.g.visible) { s.simAcc = 0; s.animAcc = 0; continue; }
-          const simInterval = fd2 < WILDLIFE_NEAR2 ? 0 : (fd2 < WILDLIFE_MID2 ? 0.12 : 0.35);
           const animInterval = fd2 < WILDLIFE_NEAR2 ? 0 : (fd2 < WILDLIFE_MID2 ? 0.08 : 0.22);
-          const animRate = s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85;
+          // Timers advance every frame so distant animals stay in real time.
+          s.t += dt; s.dir -= dt; s.stateT -= dt;
+          // Decision logic (threat scan + state machine) is the expensive part, so it
+          // stays budgeted by distance. It only sets intent (state / heading / speed);
+          // the actual motion below runs every frame so it never teleports or jitters.
+          const simInterval = fd2 < WILDLIFE_NEAR2 ? 0 : (fd2 < WILDLIFE_MID2 ? 0.12 : 0.35);
           s.simAcc = (s.simAcc || 0) + dt;
-          if (simInterval > 0 && s.simAcc < simInterval) {
-            updateAnimalMixerBudgeted(s, dt, animInterval, animRate);
-            continue;
-          }
-          const stepDt = simInterval > 0 ? Math.min(s.simAcc, 0.5) : dt;
-          s.simAcc = 0;
-          s.t += stepDt; s.dir -= stepDt; s.stateT -= stepDt;
-          const threat = nearestEnemyThreat(s.g.position.x, s.g.position.z, s.fleeDist);
-          let sp = 0;
-          if (threat.found) {
-            s.state = 'gallop';
-            s.stateT = 1.2;
-            s.ang = Math.atan2(threat.dx, threat.dz);
-            sp = s.runSp;
-            playAnimalAction(s, 'gallop');
-          } else {
-            if (s.stateT <= 0) {
-              const r = rnd();
-              if (r < 0.25) { s.state = 'eating'; s.stateT = 2.5 + rnd() * 4.5; }
-              else if (r < 0.48) { s.state = 'headlow'; s.stateT = 2 + rnd() * 3; }
-              else if (r < 0.7) { s.state = 'idle'; s.stateT = 1.5 + rnd() * 3.5; }
-              else { s.state = 'walk'; s.stateT = 2 + rnd() * 5; s.dir = s.stateT; s.ang += (rnd() - 0.5) * 1.6; }
-            }
-            if (s.state === 'walk') {
-              sp = s.sp;
-              playAnimalAction(s, 'walk');
+          if (simInterval <= 0 || s.simAcc >= simInterval) {
+            s.simAcc = 0;
+            const threat = nearestEnemyThreat(s.g.position.x, s.g.position.z, s.fleeDist);
+            if (threat.found) {
+              s.state = 'gallop';
+              s.stateT = 1.2;
+              s.ang = Math.atan2(threat.dx, threat.dz);
+              s.spd = s.runSp;
+              playAnimalAction(s, 'gallop');
             } else {
-              sp = 0;
-              const act = s.state === 'eating' && s.actions.eating ? 'eating' : (s.state === 'headlow' && s.actions.headlow ? 'headlow' : (s.state === 'idle' && s.actions.idle2 && s.idlePick > 0.5 ? 'idle2' : 'idle'));
-              playAnimalAction(s, act);
+              if (s.stateT <= 0) {
+                const r = rnd();
+                if (r < 0.25) { s.state = 'eating'; s.stateT = 2.5 + rnd() * 4.5; }
+                else if (r < 0.48) { s.state = 'headlow'; s.stateT = 2 + rnd() * 3; }
+                else if (r < 0.7) { s.state = 'idle'; s.stateT = 1.5 + rnd() * 3.5; }
+                else { s.state = 'walk'; s.stateT = 2 + rnd() * 5; s.dir = s.stateT; s.ang += (rnd() - 0.5) * 1.6; }
+              }
+              if (s.state === 'walk') {
+                s.spd = s.sp;
+                playAnimalAction(s, 'walk');
+              } else {
+                s.spd = 0;
+                const act = s.state === 'eating' && s.actions.eating ? 'eating' : (s.state === 'headlow' && s.actions.headlow ? 'headlow' : (s.state === 'idle' && s.actions.idle2 && s.idlePick > 0.5 ? 'idle2' : 'idle'));
+                playAnimalAction(s, act);
+              }
             }
           }
+          // Motion + orientation every frame -> smooth at any distance.
+          const sp = s.spd || 0;
           if (sp > 0) {
-            const nx = s.g.position.x + Math.sin(s.ang) * sp * stepDt;
-            const nz = s.g.position.z + Math.cos(s.ang) * sp * stepDt;
+            const nx = s.g.position.x + Math.sin(s.ang) * sp * dt;
+            const nz = s.g.position.z + Math.cos(s.ang) * sp * dt;
             if (heightAt(nx, nz) > WATER + 0.6) {
               s.g.position.x = nx; s.g.position.z = nz;
             } else {
+              // Blocked by water: turn away and pause briefly (don't keep shoving forward).
               s.ang += Math.PI * (0.65 + rnd() * 0.35);
               s.state = 'idle';
               s.stateT = 0.9;
-              playAnimalAction(s, s.actions.jump ? 'jump' : 'idle');
+              s.spd = 0;
+              playAnimalAction(s, 'idle');
             }
           }
           const lim = WORLD * 0.5 - 5;
@@ -4328,7 +4659,7 @@
             s.g.position.x = Math.max(-lim, Math.min(lim, s.g.position.x));
             s.g.position.z = Math.max(-lim, Math.min(lim, s.g.position.z));
           }
-          orientGroundAnimal(s, s.ang, 0, fd2 < WILDLIFE_NEAR2 ? 0.35 : 0.8);
+          orientGroundAnimal(s, s.ang, 0, fd2 < WILDLIFE_NEAR2 ? 0.2 : 0.35);
           s.model.position.y = s.modelBaseY + (sp > 0 ? Math.sin((t + s.t) * 6) * 0.035 : 0);
           updateAnimalMixerBudgeted(s, dt, animInterval, s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85);
         }
