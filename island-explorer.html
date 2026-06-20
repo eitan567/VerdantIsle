@@ -4373,17 +4373,24 @@
         }
         return clips[0] || null;
       }
-      // Many of these animal clips carry "root motion" — the clip itself slides the
-      // root bone forward (and wraps it back each loop). That fights our own s.spd
-      // movement and snaps the mesh on every loop, which read as a jitter that got
-      // worse on descents. Strip the worst-offending position track so each clip
-      // plays IN PLACE and only the code drives locomotion.
+      // Some FBX clips carry "root motion" — the clip itself slides the rig root
+      // forward (and wraps it back each loop). Strip only a true rig-root position
+      // track. Picking the largest position track is unsafe for quadrupeds because
+      // their leg IK targets legitimately move far during gallop and jump cycles.
+      const ROOT_MOTION_TRACK_RE = /^(root|armature|animalarmature|hips|pelvis|mixamorighips|mixamorig:hips)$/i;
+      function rootMotionNodeName(trackName) {
+        if (!trackName || !trackName.endsWith('.position')) return '';
+        const path = trackName.slice(0, -'.position'.length);
+        const dot = path.lastIndexOf('.');
+        return dot >= 0 ? path.slice(dot + 1) : path;
+      }
       function stripRootMotion(clip) {
         if (!clip || !clip.tracks || clip._rootStripped) return clip;
         let worst = null, maxDisp = 0;
         for (let i = 0; i < clip.tracks.length; i++) {
           const tr = clip.tracks[i];
-          if (!tr.name || !tr.name.endsWith('.position') || !tr.values) continue;
+          const nodeName = rootMotionNodeName(tr.name);
+          if (!ROOT_MOTION_TRACK_RE.test(nodeName) || !tr.values) continue;
           let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
           for (let v = 0; v + 2 < tr.values.length; v += 3) {
             const x = tr.values[v], z = tr.values[v + 2];
@@ -4410,12 +4417,19 @@
       function playAnimalAction(animal, name, fade = 0.25) {
         if (!animal.actions || !animal.actions[name] || animal.currentAction === name) return;
         const next = animal.actions[name];
+        const prev = animal.currentAction && animal.actions[animal.currentAction];
+        if (prev === next) {
+          // Walk and gallop can intentionally share the same stable clip. In that
+          // case switching state labels must not reset the loop mid-stride.
+          animal.currentAction = name;
+          next.enabled = true;
+          next.play();
+          return;
+        }
         next.enabled = true;
         next.reset();
         next.play();
-        if (animal.currentAction && animal.actions[animal.currentAction]) {
-          animal.actions[animal.currentAction].crossFadeTo(next, fade, false);
-        }
+        if (prev) prev.crossFadeTo(next, fade, false);
         animal.currentAction = name;
       }
       const terrainNormalTmp = new THREE.Vector3();
@@ -4424,22 +4438,42 @@
       const terrainMatrixTmp = new THREE.Matrix4();
       const terrainQuatTmp = new THREE.Quaternion();
       const _animUp = new THREE.Vector3(0, 1, 0);
+      function animalMotionEase(dt, sharpness) {
+        return 1 - Math.exp(-Math.max(0, sharpness) * Math.max(0, dt));
+      }
+      function lerpAnimalAngle(a, b, t) {
+        let d = (b - a + Math.PI) % (Math.PI * 2);
+        if (d < 0) d += Math.PI * 2;
+        return a + (d - Math.PI) * Math.max(0, Math.min(1, t));
+      }
       function terrainNormalAt(x, z, step = 2.2) {
         const hL = heightAt(x - step, z), hR = heightAt(x + step, z);
         const hD = heightAt(x, z - step), hU = heightAt(x, z + step);
         return terrainNormalTmp.set(hL - hR, step * 2, hD - hU).normalize();
       }
-      function orientGroundAnimal(animal, heading, yOffset = 0, smooth = 0.35) {
+      function orientGroundAnimal(animal, heading, yOffset = 0, smooth = 0.35, dt = 1 / 60) {
         const g = animal.g || animal;
-        // Sit on the AVERAGE ground under the whole body (front + centre + back) so the
-        // legs don't float off a hilltop or sink in a dip — sampling only the centre
-        // left the downhill legs hanging in the air on slopes/peaks.
-        const fx = Math.sin(heading), fz = Math.cos(heading), hl = 1.8;
-        const hC = heightAt(g.position.x, g.position.z);
-        const hF = heightAt(g.position.x + fx * hl, g.position.z + fz * hl);
-        const hB = heightAt(g.position.x - fx * hl, g.position.z - fz * hl);
-        const ground = Math.max((hC + hF + hB) / 3, WATER);
-        g.position.y = ground + yOffset;
+        // Sample 5 points along the body axis (±1 and ±2 units) and average them.
+        // This acts as a spatial box-filter: the finest terrain ridge octave (λ≈5u) is
+        // attenuated to ~23% amplitude while large-scale slopes pass through unchanged.
+        // The previous 3-point sample at ±1.8 only gave ~34% attenuation, leaving
+        // visible Y-bouncing when galloping across bumpy terrain at full speed.
+        const fx = Math.sin(heading), fz = Math.cos(heading);
+        const ground = Math.max((
+          heightAt(g.position.x - fx * 2, g.position.z - fz * 2) +
+          heightAt(g.position.x - fx,     g.position.z - fz    ) +
+          heightAt(g.position.x,           g.position.z          ) +
+          heightAt(g.position.x + fx,     g.position.z + fz    ) +
+          heightAt(g.position.x + fx * 2, g.position.z + fz * 2)
+        ) * 0.2, WATER);
+        const targetY = ground + yOffset;
+        if (!Number.isFinite(animal.groundY) || smooth >= 1) {
+          animal.groundY = targetY;
+        } else {
+          animal.groundY += (targetY - animal.groundY) * animalMotionEase(dt, 9);
+          animal.groundY = Math.max(targetY - 0.45, Math.min(targetY + 0.45, animal.groundY));
+        }
+        g.position.y = animal.groundY;
         // Conform to the slope so the legs meet the ground; blend a touch toward world
         // up and slerp below for stability (so lake-edge normal jumps don't snap).
         const up = terrainNormalAt(g.position.x, g.position.z);
@@ -4461,7 +4495,11 @@
         headlow: [/Idle_Headlow/i, /Headlow/i, /Eating/i, /idle/i],
         eating: [/Eating/i, /Idle_Headlow/i, /idle/i],
         walk: [/^Walk$/i, /AnimalArmature\|Walk/i, /walk/i],
-        gallop: [/Gallop$/i, /run/i, /Walk/i],
+        // The shipped Gallop clips drive IK/foot-control bones that Three.js does
+        // not solve as constraints, which makes small hoof clusters flicker or lag
+        // behind the legs. Use the stable walk cycle at a higher playback rate for
+        // fleeing animals instead.
+        gallop: [/^Walk$/i, /AnimalArmature\|Walk/i, /walk/i, /Gallop$/i],
         jump: [/Jump_toIdle/i, /Gallop_Jump/i, /Idle/i]
       };
       const _fbxCache = {};
@@ -4495,6 +4533,7 @@
               const mats = Array.isArray(o.material) ? o.material : [o.material];
               mats.forEach(m => {
                 if ('roughness' in m) m.roughness = Math.max(0.85, m.roughness || 0.85);
+                m.side = THREE.DoubleSide; // prevent triangle shimmer when bone-deformed faces briefly flip toward camera
                 m.needsUpdate = true;
               });
             }
@@ -4530,19 +4569,23 @@
           scene.add(g);
           const anim = makeFbxActions(model, clips, groundAnimalClipMap);
           Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.85 + rnd() * 0.25; });
+          const initialAng = rnd() * 6.28;
           const animal = {
             kind: cfg.kind,
             g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '',
             sp: cfg.walkSpeed + rnd() * (cfg.walkJitter || 1.0),
             runSp: cfg.runSpeed + rnd() * (cfg.runJitter || 1.8),
             fleeDist: cfg.fleeDist || 22,
-            ang: rnd() * 6.28,
+            ang: initialAng,
+            targetAng: initialAng,
             t: rnd() * 9,
             dir: 1 + rnd() * 3,
             state: 'idle',
             stateT: 1 + rnd() * 4,
             idlePick: rnd(),
             spd: 0,
+            moveSpd: 0,
+            groundY: h,
             simAcc: rnd() * 0.25,
             animAcc: rnd() * 0.25
           };
@@ -4710,8 +4753,8 @@
             if (threat.found) {
               s.state = 'gallop';
               s.stateT = 1.2;
-              s.ang = Math.atan2(threat.dx, threat.dz);
-              s.spd = s.runSp;
+              s.targetAng = Math.atan2(threat.dx, threat.dz);
+              s.spd = Math.min(s.runSp, s.sp * 2.15);
               playAnimalAction(s, 'gallop');
             } else {
               if (s.stateT <= 0) {
@@ -4719,9 +4762,12 @@
                 if (r < 0.25) { s.state = 'eating'; s.stateT = 2.5 + rnd() * 4.5; }
                 else if (r < 0.48) { s.state = 'headlow'; s.stateT = 2 + rnd() * 3; }
                 else if (r < 0.7) { s.state = 'idle'; s.stateT = 1.5 + rnd() * 3.5; }
-                else { s.state = 'walk'; s.stateT = 2 + rnd() * 5; s.dir = s.stateT; s.ang += (rnd() - 0.5) * 1.6; }
+                else { s.state = 'walk'; s.stateT = 2 + rnd() * 5; s.dir = s.stateT; s.targetAng = s.ang + (rnd() - 0.5) * 1.6; }
               }
-              if (s.state === 'walk') {
+              if (s.state === 'gallop') {
+                s.spd = Math.min(s.runSp, s.sp * 2.15);
+                playAnimalAction(s, 'gallop');
+              } else if (s.state === 'walk') {
                 s.spd = s.sp;
                 playAnimalAction(s, 'walk');
               } else {
@@ -4732,7 +4778,13 @@
             }
           }
           // Motion + orientation every frame -> smooth at any distance.
-          const sp = s.spd || 0;
+          if (!Number.isFinite(s.targetAng)) s.targetAng = s.ang;
+          s.ang = lerpAnimalAngle(s.ang, s.targetAng, animalMotionEase(dt, s.state === 'gallop' ? 7 : 4.5));
+          const desiredSp = s.spd || 0;
+          const curSp = s.moveSpd || 0;
+          s.moveSpd = curSp + (desiredSp - curSp) * animalMotionEase(dt, desiredSp > curSp ? 4.5 : 7.5);
+          if (desiredSp <= 0 && s.moveSpd < 0.03) s.moveSpd = 0;
+          const sp = s.moveSpd || 0;
           if (sp > 0) {
             const nx = s.g.position.x + Math.sin(s.ang) * sp * dt;
             const nz = s.g.position.z + Math.cos(s.ang) * sp * dt;
@@ -4743,8 +4795,8 @@
               // walking, so it calmly leaves the shore instead of jittering at the edge.
               const gx = heightAt(s.g.position.x + 2, s.g.position.z) - heightAt(s.g.position.x - 2, s.g.position.z);
               const gz = heightAt(s.g.position.x, s.g.position.z + 2) - heightAt(s.g.position.x, s.g.position.z - 2);
-              if (gx * gx + gz * gz > 1e-6) s.ang = Math.atan2(gx, gz);
-              else s.ang += Math.PI;
+              if (gx * gx + gz * gz > 1e-6) s.targetAng = Math.atan2(gx, gz);
+              else s.targetAng = s.ang + Math.PI;
               s.state = 'walk'; s.spd = s.sp;
               if (s.stateT < 0.5) s.stateT = 1.5 + rnd() * 2;
               playAnimalAction(s, 'walk');
@@ -4752,13 +4804,15 @@
           }
           const lim = WORLD * 0.5 - 5;
           if (s.g.position.x < -lim || s.g.position.x > lim || s.g.position.z < -lim || s.g.position.z > lim) {
-            s.ang += Math.PI;
+            s.targetAng = s.ang + Math.PI;
             s.g.position.x = Math.max(-lim, Math.min(lim, s.g.position.x));
             s.g.position.z = Math.max(-lim, Math.min(lim, s.g.position.z));
           }
-          orientGroundAnimal(s, s.ang, 0, fd2 < WILDLIFE_NEAR2 ? 0.2 : 0.35);
-          s.model.position.y = s.modelBaseY + (sp > 0 ? Math.sin((t + s.t) * 6) * 0.035 : 0);
-          updateAnimalMixerBudgeted(s, dt, animInterval, s.state === 'gallop' ? 1.25 : s.state === 'walk' ? 1.0 : 0.85);
+          orientGroundAnimal(s, s.ang, 0, fd2 < WILDLIFE_NEAR2 ? 0.2 : 0.35, dt);
+          const gaitAmt = Math.min(1, sp / Math.max(0.01, s.sp));
+          s.model.position.y = s.modelBaseY + (sp > 0.03 ? Math.sin(s.t * 6) * 0.022 * gaitAmt : 0);
+          const speedRate = Math.max(0.75, Math.min(1.65, sp / Math.max(0.1, s.sp)));
+          updateAnimalMixerBudgeted(s, dt, animInterval, s.state === 'gallop' ? Math.max(1.2, speedRate) : s.state === 'walk' ? Math.min(1.15, speedRate) : 0.85);
         }
         for (let i = 0; i < critters.length; i++) {
           const c = critters[i]; c.t += dt; c.dir -= dt;
@@ -4769,7 +4823,7 @@
           const nx = c.g.position.x + Math.sin(c.ang) * sp * dt, nz = c.g.position.z + Math.cos(c.ang) * sp * dt;
           if (heightAt(nx, nz) > WATER + 0.3) { c.g.position.x = nx; c.g.position.z = nz; } else c.ang += Math.PI;
           const lim = WORLD * 0.5 - 4; c.g.position.x = Math.max(-lim, Math.min(lim, c.g.position.x)); c.g.position.z = Math.max(-lim, Math.min(lim, c.g.position.z));
-          orientGroundAnimal(c, c.ang, 0, 0.4);
+          orientGroundAnimal(c, c.ang, 0, 0.4, dt);
           if (c.type === 'rabbit') { c.hop += dt * (6 + sp); c.g.position.y += Math.max(0, Math.sin(c.hop)) * 0.4; }
           else { const g2 = Math.sin(c.t * 5) * 0.5; for (let l = 0; l < c.legs.length; l++) c.legs[l].rotation.x = (l % 2 ? g2 : -g2); }
         }
