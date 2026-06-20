@@ -2685,14 +2685,14 @@
           body.add(fbx);
           playerRig = fbx;
           playerMixer = new THREE.AnimationMixer(fbx);
-          if (fbx.animations && fbx.animations[0]) playerActions.idle = playerMixer.clipAction(fbx.animations[0]);
+          if (fbx.animations && fbx.animations[0]) playerActions.idle = playerMixer.clipAction(stripRootMotion(fbx.animations[0]));
           setPlayerAction('idle', 0);
           boxParts.forEach(m => m.visible = false);      // retire the box avatar
           usingDwarf = true;
           Object.keys(CLIP_FILES).forEach(name => {
             loader.load('models/character/' + CLIP_FILES[name], cf => {
               const clip = cf.animations && cf.animations[0];
-              if (clip) { clip.name = name; playerActions[name] = playerMixer.clipAction(clip); }
+              if (clip) { clip.name = name; playerActions[name] = playerMixer.clipAction(stripRootMotion(clip)); }
             }, undefined, e => console.warn('Could not load clip ' + name, e));
           });
         }, undefined, e => console.warn('Could not load player model', e));
@@ -4373,13 +4373,37 @@
         }
         return clips[0] || null;
       }
+      // Many of these animal clips carry "root motion" — the clip itself slides the
+      // root bone forward (and wraps it back each loop). That fights our own s.spd
+      // movement and snaps the mesh on every loop, which read as a jitter that got
+      // worse on descents. Strip the worst-offending position track so each clip
+      // plays IN PLACE and only the code drives locomotion.
+      function stripRootMotion(clip) {
+        if (!clip || !clip.tracks || clip._rootStripped) return clip;
+        let worst = null, maxDisp = 0;
+        for (let i = 0; i < clip.tracks.length; i++) {
+          const tr = clip.tracks[i];
+          if (!tr.name || !tr.name.endsWith('.position') || !tr.values) continue;
+          let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+          for (let v = 0; v + 2 < tr.values.length; v += 3) {
+            const x = tr.values[v], z = tr.values[v + 2];
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+          }
+          const disp = (maxX - minX) + (maxZ - minZ);
+          if (disp > maxDisp) { maxDisp = disp; worst = tr; }
+        }
+        if (worst && maxDisp > 1) clip.tracks = clip.tracks.filter(t => t !== worst);
+        clip._rootStripped = true;
+        return clip;
+      }
       function makeFbxActions(model, clips, names) {
         const mixer = clips.length ? new THREE.AnimationMixer(model) : null;
         const actions = {};
         if (!mixer) return { mixer, actions };
         Object.keys(names).forEach(key => {
           const clip = fbxClip(clips, names[key]);
-          if (clip) actions[key] = mixer.clipAction(clip);
+          if (clip) actions[key] = mixer.clipAction(stripRootMotion(clip));
         });
         return { mixer, actions };
       }
@@ -4399,16 +4423,27 @@
       const terrainRightTmp = new THREE.Vector3();
       const terrainMatrixTmp = new THREE.Matrix4();
       const terrainQuatTmp = new THREE.Quaternion();
-      function terrainNormalAt(x, z, step = 1.4) {
+      const _animUp = new THREE.Vector3(0, 1, 0);
+      function terrainNormalAt(x, z, step = 2.2) {
         const hL = heightAt(x - step, z), hR = heightAt(x + step, z);
         const hD = heightAt(x, z - step), hU = heightAt(x, z + step);
         return terrainNormalTmp.set(hL - hR, step * 2, hD - hU).normalize();
       }
       function orientGroundAnimal(animal, heading, yOffset = 0, smooth = 0.35) {
         const g = animal.g || animal;
-        const ground = Math.max(heightAt(g.position.x, g.position.z), WATER);
+        // Sit on the AVERAGE ground under the whole body (front + centre + back) so the
+        // legs don't float off a hilltop or sink in a dip — sampling only the centre
+        // left the downhill legs hanging in the air on slopes/peaks.
+        const fx = Math.sin(heading), fz = Math.cos(heading), hl = 1.8;
+        const hC = heightAt(g.position.x, g.position.z);
+        const hF = heightAt(g.position.x + fx * hl, g.position.z + fz * hl);
+        const hB = heightAt(g.position.x - fx * hl, g.position.z - fz * hl);
+        const ground = Math.max((hC + hF + hB) / 3, WATER);
         g.position.y = ground + yOffset;
+        // Conform to the slope so the legs meet the ground; blend a touch toward world
+        // up and slerp below for stability (so lake-edge normal jumps don't snap).
         const up = terrainNormalAt(g.position.x, g.position.z);
+        up.lerp(_animUp, 0.2).normalize();
         const forward = terrainForwardTmp.set(Math.sin(heading), 0, Math.cos(heading));
         forward.addScaledVector(up, -forward.dot(up));
         if (forward.lengthSq() < 0.0001) forward.set(0, 0, 1);
@@ -4649,7 +4684,7 @@
           setAnimalShadowing(p, p.g.visible && pd2 < WILDLIFE_SHADOW2);
           if (!p.g.visible) { p.animAcc = 0; continue; }
           p.g.rotation.set(Math.sin(t * 0.65 + p.phase) * 0.08, Math.atan2(nx - x, nz - z), Math.sin(t * 0.9 + p.phase) * 0.14);
-          updateAnimalMixerBudgeted(p, dt, pd2 < WILDLIFE_NEAR2 ? 0 : (pd2 < WILDLIFE_MID2 ? 0.1 : 0.25), 1);
+          updateAnimalMixerBudgeted(p, dt, 0, 1);   // animate every frame -> smooth wings
         }
         for (let i = 0; i < groundAnimals.length; i++) {
           const s = groundAnimals[i];
@@ -4657,7 +4692,11 @@
           s.g.visible = fd2 < hideDist2;
           setAnimalShadowing(s, s.g.visible && fd2 < WILDLIFE_SHADOW2);
           if (!s.g.visible) { s.simAcc = 0; s.animAcc = 0; continue; }
-          const animInterval = fd2 < WILDLIFE_NEAR2 ? 0 : (fd2 < WILDLIFE_MID2 ? 0.08 : 0.22);
+          // Always animate every frame while visible. Budgeting the mixer by distance
+          // updated the legs at only ~5-12fps, which read as a stuttering/"choppy"
+          // gait. A handful of skinned animals per frame is cheap; the player model
+          // animates every frame too, which is why it looks smooth.
+          const animInterval = 0;
           // Timers advance every frame so distant animals stay in real time.
           s.t += dt; s.dir -= dt; s.stateT -= dt;
           // Decision logic (threat scan + state machine) is the expensive part, so it
