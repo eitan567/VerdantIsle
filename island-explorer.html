@@ -2113,6 +2113,8 @@
       // collision + enterable-house registries (read by the player-movement loop)
       const colliders = [];   // simple cylinder blockers: { x, z, r }
       const houses = [];      // enterable houses: { x, z, rot, W, D, doorHalf, y, fade:[mats], door, lamp }
+      const perchSpots = [];  // nice, exposed landing points for the menu parrot: roof ridges + fence-post tops
+      const houseGroups = []; // house meshes, used as line-of-sight occluders for the menu camera
       function resolvePlayerCollision() {
         const pr = 0.5; let nxp = player.position.x, nzp = player.position.z;
         for (let i = 0; i < colliders.length; i++) { const c = colliders[i], dx = nxp - c.x, dz = nzp - c.z, d = Math.hypot(dx, dz), rr = c.r + pr; if (d < rr && d > 1e-4) { const k = (rr - d) / d; nxp += dx * k; nzp += dz * k; } }
@@ -2484,7 +2486,7 @@
         const fFloor = new THREE.MeshStandardMaterial({ color: 0xb98a55, roughness: 1, flatShading: true });
         function makeHouse(x, z, h, rot) {
           flattenPad(x, z, 5.5, h);   // level the ground under the house first
-          const g = new THREE.Group(); g.position.set(x, h, z); g.rotation.y = rot; scene.add(g);
+          const g = new THREE.Group(); g.position.set(x, h, z); g.rotation.y = rot; scene.add(g); houseGroups.push(g);
           // sized for the tall player (eye height 3.0): roomy footprint, ~3.8 door, ~5 ceiling
           const W = 9, D = 8, th = 0.24, doorHalf = 1.35;
           const FLOOR = 1.0, wallH = 5.0, wallY = FLOOR + wallH / 2, wallTop = FLOOR + wallH; // walls 1.0 -> 6.0
@@ -2552,6 +2554,11 @@
             }
           }
           houses.push({ x, z, rot, W: iw, D: id, doorHalf, y: h, fade: [wm, rm, gm], door: doorPivot, lamp, open: false });
+          // roof ridge + the two gable apexes -> clean, exposed perches for the menu parrot
+          const ridgeY = h + wallTop + hh + 0.1, sr2 = Math.sin(rot), cr2 = Math.cos(rot);
+          perchSpots.push({ x, y: ridgeY, z });
+          perchSpots.push({ x: x + hd * sr2, y: ridgeY, z: z + hd * cr2 });
+          perchSpots.push({ x: x - hd * sr2, y: ridgeY, z: z - hd * cr2 });
           return g;
         }
         worldMakeHouse = makeHouse;   // let buildAt() reuse this enterable house
@@ -2563,6 +2570,7 @@
             const px = dir ? x : x + i * step, pz = dir ? z + i * step : z, py = heightAt(px, pz);
             box(0.17, 1.7, 0.17, woodMat, px, py + 0.55, pz, g);   // post (sunk a little, so it always meets the ground)
             colliders.push({ x: px, z: pz, r: 0.45 });             // fence blocks the player
+            perchSpots.push({ x: px, y: py + 1.45, z: pz });       // post top -> menu parrot perch
             if (i < n) {
               const px2 = dir ? x : x + (i + 1) * step, pz2 = dir ? z + (i + 1) * step : z, py2 = heightAt(px2, pz2);
               const mx = (px + px2) / 2, mz = (pz + pz2) / 2, my = (py + py2) / 2, dy = py2 - py, sl = Math.hypot(step, dy);
@@ -4714,21 +4722,178 @@
       const tmpV = new THREE.Vector3();
       const _uw = document.getElementById('underwater'), _br = document.getElementById('breath'), _brf = document.getElementById('breathFill');
 
+      /* ---- Main-menu hero parrot: a single bird the camera chases on a
+         cinematic flight path around the island while the menu is up. ---- */
+      let menuParrot = null, menuParrotMixer = null, menuParrotAction = null, _menuParrotReq = false;
+      const mpPos = new THREE.Vector3(), mpVelV = new THREE.Vector3();
+      const _mpTarget = new THREE.Vector3(), _mpDir = new THREE.Vector3(), _mpPerch = new THREE.Vector3();
+      const _mpFwd = new THREE.Vector3(0, 0, 1), _mpTmp = new THREE.Vector3();
+      const _camTarget = new THREE.Vector3(), _lookTarget = new THREE.Vector3(), _mpRight = new THREE.Vector3();
+      const _mpRay = new THREE.Raycaster(), _mpLOS = new THREE.Vector3();
+      // flight state machine: cruise -> glide down to a perch -> sit -> cruise
+      let mpPhase = Math.random() * 100;   // path parameter (advances while cruising)
+      let mpState = 'fly', mpStateT = 0, mpHold = 0, mpNextPerch = 9 + Math.random() * 7;
+      let mpYaw = 0, mpPitch = 0, mpRoll = 0, mpInit = false;
+      const MP_CRUISE = 11, MP_PATHRATE = 0.11;   // units/s and path speed
+      function menuParrotPos(a, out) {
+        // wandering loop: radius and height swell and shrink for an organic orbit
+        const R = 96 + 34 * Math.sin(a * 0.6) + 8 * Math.sin(a * 1.7 + 1.3);
+        const x = Math.sin(a) * R, z = Math.cos(a) * R;
+        const y = 44 + 15 * Math.sin(a * 0.9 + 0.4) + 4 * Math.sin(a * 2.3);
+        out.set(x, Math.max(heightAt(x, z) + 18, y), z);
+        return out;
+      }
+      // The path phase whose point is nearest a perch, so the bird rejoins the
+      // loop at the closest spot instead of racing back across the island.
+      function nearestPathPhase(p) {
+        let best = mpPhase, bestD = Infinity;
+        for (let i = 0; i < 48; i++) {
+          const ph = mpPhase + (i / 48) * Math.PI * 2;
+          menuParrotPos(ph, _mpTmp);
+          const dx = _mpTmp.x - p.x, dz = _mpTmp.z - p.z, d = dx * dx + dz * dz;
+          if (d < bestD) { bestD = d; best = ph; }
+        }
+        return best;
+      }
+      // Choose the nearest real, exposed landing spot (roof ridge / fence post) to
+      // the bird, but only if it's reasonably close so the glide-down stays short.
+      // Using a curated list means it never tries to land in water or inside foliage.
+      function pickPerch(near, out) {
+        let best = null, bestD = Infinity;
+        for (let i = 0; i < perchSpots.length; i++) {
+          const p = perchSpots[i];
+          const dx = p.x - near.x, dz = p.z - near.z, d = dx * dx + dz * dz;
+          if (d < bestD) { bestD = d; best = p; }
+        }
+        if (best && bestD < 60 * 60) { out.set(best.x, best.y, best.z); return true; }
+        return false;
+      }
+      function ensureMenuParrot() {
+        if (menuParrot || _menuParrotReq || !THREE.GLTFLoader) return;
+        const build = gltf => {
+          const clip = gltf.animations && gltf.animations[0];
+          const g = new THREE.Group();
+          const model = gltf.scene.clone(true);
+          model.scale.setScalar(0.055);                      // realistic next to props; camera sits close
+          model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = false; } });
+          g.add(model); g.frustumCulled = false; scene.add(g);
+          menuParrotMixer = clip ? new THREE.AnimationMixer(model) : null;
+          if (menuParrotMixer) { menuParrotAction = menuParrotMixer.clipAction(clip); menuParrotAction.timeScale = 1.15; menuParrotAction.play(); }
+          menuParrot = g; mpInit = false; mpState = 'fly'; mpStateT = 0; mpVelV.set(0, 0, 0); mpNextPerch = 9 + Math.random() * 7;
+        };
+        if (_parrotGltf) { build(_parrotGltf); return; }
+        _menuParrotReq = true;
+        new THREE.GLTFLoader().load('models/Flying_Parrot_Animated.glb', gltf => {
+          gltf.scene.traverse(o => { if (o.isMesh && o.material) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach(m => { m.roughness = Math.max(0.55, m.roughness || 0.55); m.needsUpdate = true; }); } });
+          _parrotGltf = gltf; _menuParrotReq = false; if (inMainMenu) build(gltf);
+        }, undefined, err => { _menuParrotReq = false; console.warn('Could not load menu parrot', err); });
+      }
+      function updateMenuParrotCamera(t, dt) {
+        if (!menuParrot) {
+          // graceful fallback orbit until the model finishes loading
+          const orbitAngle = t * 0.045, R = 130;
+          const cx = Math.sin(orbitAngle) * R, cz = Math.cos(orbitAngle) * R;
+          camera.position.set(cx, Math.max(32, heightAt(cx, cz) + 36), cz);
+          camera.lookAt(0, 4, 0);
+          return;
+        }
+        menuParrot.visible = true;
+        if (!mpInit) { menuParrotPos(mpPhase, mpPos); mpVelV.set(0, 0, 0); mpInit = true; }
+        mpStateT += dt;
+
+        // --- choose a steering target + desired speed for the current state ---
+        let flapping = true, desiredSpeed = MP_CRUISE;
+        if (mpState === 'fly') {
+          mpPhase += dt * MP_PATHRATE;
+          menuParrotPos(mpPhase, _mpTarget);
+          mpNextPerch -= dt;
+          if (mpNextPerch <= 0) {
+            if (pickPerch(mpPos, _mpPerch)) { mpState = 'toperch'; mpStateT = 0; }
+            else mpNextPerch = 3 + Math.random() * 3;
+          }
+        } else if (mpState === 'toperch') {
+          _mpTarget.copy(_mpPerch);
+          const dist = mpPos.distanceTo(_mpPerch);
+          desiredSpeed = MP_CRUISE * Math.max(0.2, Math.min(1, dist / 14));   // ease to a gentle stop
+          if (dist < 1.2) { mpState = 'perched'; mpStateT = 0; mpHold = 2 + Math.random(); mpPos.copy(_mpPerch); mpVelV.set(0, 0, 0); }
+          else if (mpStateT > 8) { mpState = 'fly'; mpStateT = 0; mpNextPerch = 6 + Math.random() * 6; }  // gave up — never get stuck
+        } else { // perched
+          _mpTarget.copy(_mpPerch); desiredSpeed = 0; flapping = false;
+          if (mpStateT >= mpHold) { mpPhase = nearestPathPhase(_mpPerch); mpState = 'fly'; mpStateT = 0; mpNextPerch = 8 + Math.random() * 8; }
+        }
+
+        // --- velocity-integrated steering: constant cruise speed, smooth turns ---
+        _mpDir.subVectors(_mpTarget, mpPos);
+        const dd = _mpDir.length() || 1e-3;
+        _mpDir.multiplyScalar(desiredSpeed / dd);             // desired velocity vector
+        mpVelV.lerp(_mpDir, 1 - Math.pow(0.04, dt));          // smooth acceleration / banking
+        const sp = mpVelV.length();
+        if (sp > MP_CRUISE * 1.3) mpVelV.multiplyScalar(MP_CRUISE * 1.3 / sp);
+        mpPos.addScaledVector(mpVelV, dt);
+        // Keep clear of the ground only while cruising; landing must be free to
+        // descend onto low perches (fence posts sit just ~1.5 above the ground).
+        if (mpState === 'fly') { const minY = heightAt(mpPos.x, mpPos.z) + 3; if (mpPos.y < minY) mpPos.y = minY; }
+
+        // --- orientation from the (already smooth) velocity ---
+        const horiz = Math.hypot(mpVelV.x, mpVelV.z);
+        let targetPitch = 0, targetRoll = 0;
+        if (horiz > 0.06) {
+          const yaw = Math.atan2(mpVelV.x, mpVelV.z);
+          let dyaw = yaw - mpYaw; while (dyaw > Math.PI) dyaw -= 2 * Math.PI; while (dyaw < -Math.PI) dyaw += 2 * Math.PI;
+          mpYaw = yaw;
+          targetRoll = Math.max(-0.6, Math.min(0.6, -(dyaw / dt) * 0.22));
+          targetPitch = Math.max(-0.45, Math.min(0.45, Math.atan2(mpVelV.y, horiz) * 0.6));
+        }
+        const ease = 1 - Math.pow(0.025, dt);
+        mpRoll += (targetRoll - mpRoll) * ease;
+        mpPitch += (targetPitch - mpPitch) * ease;
+        menuParrot.position.copy(mpPos);
+        menuParrot.rotation.set(-mpPitch, mpYaw, mpRoll, 'YXZ');
+
+        // --- close chase camera, slightly to the side for a flattering 3/4 view ---
+        if (horiz > 0.06) { _mpTmp.set(mpVelV.x, 0, mpVelV.z).normalize(); _mpFwd.lerp(_mpTmp, 1 - Math.pow(0.08, dt)); }
+        if (_mpFwd.lengthSq() < 1e-6) _mpFwd.set(0, 0, 1);
+        _mpTmp.copy(_mpFwd).normalize();
+        _mpRight.set(_mpTmp.z, 0, -_mpTmp.x);                 // horizontal right of travel
+        // Near a perch the bird is low on a roof/fence, so lift the camera and look
+        // down at it — this keeps it clear of the very thing it's sitting on.
+        let perchBlend = 0;
+        if (mpState === 'perched') perchBlend = 1;
+        else if (mpState === 'toperch') perchBlend = Math.max(0, Math.min(1, 1 - mpPos.distanceTo(_mpPerch) / 16));
+        const backDist = 3.3 - 0.7 * perchBlend, upH = 1.1 + 2.7 * perchBlend, side = 0.9 * (1 - 0.55 * perchBlend);
+        _camTarget.copy(mpPos).addScaledVector(_mpTmp, -backDist).addScaledVector(_mpRight, side);
+        _camTarget.y += upH;
+        const groundY = heightAt(_camTarget.x, _camTarget.z) + 1.8;
+        if (_camTarget.y < groundY) _camTarget.y = groundY;
+        // Guarantee the bird stays visible: if a house roof/wall blocks the line of
+        // sight (mostly when perched), lift the camera until it has a clear view.
+        if (perchBlend > 0.01 && houseGroups.length) {
+          for (let tries = 0; tries < 8; tries++) {
+            _mpLOS.subVectors(mpPos, _camTarget);
+            const segLen = _mpLOS.length(); if (segLen < 0.05) break;
+            _mpLOS.multiplyScalar(1 / segLen);
+            _mpRay.set(_camTarget, _mpLOS); _mpRay.far = segLen - 0.5;
+            if (!_mpRay.intersectObjects(houseGroups, true).length) break;
+            _camTarget.y += 1.6;
+          }
+        }
+        camera.position.lerp(_camTarget, 1 - Math.pow(perchBlend > 0.4 ? 0.00008 : 0.0016, dt));
+        _lookTarget.copy(mpPos).addScaledVector(_mpTmp, 0.6 * (1 - perchBlend)); _lookTarget.y += 0.25 - 0.2 * perchBlend;
+        camera.lookAt(_lookTarget);
+
+        if (menuParrotAction) menuParrotAction.timeScale = flapping ? 1.15 : 0.15;
+        if (menuParrotMixer) menuParrotMixer.update(dt);
+      }
+
       function animate() {
         requestAnimationFrame(animate);
         const dt = Math.min(clock.getDelta(), 0.05);
         const t = clock.elapsedTime;
 
         if (inMainMenu) {
-          // Slowly orbit the camera around the island
-          const orbitRadius = 130;
-          const orbitSpeed = 0.045; // radians per second
-          const orbitAngle = t * orbitSpeed;
-          const camX = Math.sin(orbitAngle) * orbitRadius;
-          const camZ = Math.cos(orbitAngle) * orbitRadius;
-          const camY = Math.max(32, heightAt(camX, camZ) + 36);
-          camera.position.set(camX, camY, camZ);
-          camera.lookAt(0, 4, 0);
+          // Camera chases a hero parrot on a cinematic loop around the island
+          ensureMenuParrot();
+          updateMenuParrotCamera(t, dt);
 
           // Animate background elements
           waterFoamU.uTime.value = t;
@@ -4758,6 +4923,9 @@
           renderer.render(scene, camera);
           return;
         }
+
+        // hero parrot only belongs to the menu — hide it once gameplay starts
+        if (menuParrot && menuParrot.visible) menuParrot.visible = false;
 
         const transitionCamera = updateMenuCameraTransition();
         if (transitionCamera) {
