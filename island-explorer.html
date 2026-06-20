@@ -2652,6 +2652,53 @@
       vmL.add(torch);
 
       /* ============================================================
+         PLAYER MODEL — an animated Mixamo "dwarf" replaces the simple box
+         avatar in third-person. If it can't load, the box avatar stays.
+         ============================================================ */
+      const boxParts = [];
+      body.traverse(o => { if (o.isMesh) boxParts.push(o); });
+      let usingDwarf = false, playerMixer = null, playerRig = null, playerHeadBone = null;
+      const playerActions = {};
+      let playerCur = '';
+      function setPlayerAction(name, fade = 0.18) {
+        if (!playerMixer || !playerActions[name] || playerCur === name) return;
+        const next = playerActions[name];
+        next.enabled = true; next.reset(); next.play();
+        if (playerCur && playerActions[playerCur]) playerActions[playerCur].crossFadeTo(next, fade, false);
+        playerCur = name;
+      }
+      (function loadPlayerModel() {
+        if (!THREE.FBXLoader) return;
+        const loader = new THREE.FBXLoader();
+        const CLIP_FILES = { walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', attack: 'Mma Kick.fbx' };
+        loader.load('models/character/Dwarf Idle.fbx', fbx => {
+          const bbox = new THREE.Box3().setFromObject(fbx);
+          const size = bbox.getSize(new THREE.Vector3());
+          const scale = 3.3 / (size.y || 1);            // match the ~3.3-unit tall avatar
+          fbx.scale.setScalar(scale);
+          fbx.position.y = -bbox.min.y * scale;          // feet at the body-group origin
+          fbx.rotation.y = Math.PI;                      // face the player's forward (-Z)
+          fbx.traverse(o => {
+            if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; }
+            if (o.isBone && !playerHeadBone && o.name.toLowerCase().indexOf('head') >= 0) playerHeadBone = o;
+          });
+          body.add(fbx);
+          playerRig = fbx;
+          playerMixer = new THREE.AnimationMixer(fbx);
+          if (fbx.animations && fbx.animations[0]) playerActions.idle = playerMixer.clipAction(fbx.animations[0]);
+          setPlayerAction('idle', 0);
+          boxParts.forEach(m => m.visible = false);      // retire the box avatar
+          usingDwarf = true;
+          Object.keys(CLIP_FILES).forEach(name => {
+            loader.load('models/character/' + CLIP_FILES[name], cf => {
+              const clip = cf.animations && cf.animations[0];
+              if (clip) { clip.name = name; playerActions[name] = playerMixer.clipAction(clip); }
+            }, undefined, e => console.warn('Could not load clip ' + name, e));
+          });
+        }, undefined, e => console.warn('Could not load player model', e));
+      })();
+
+      /* ============================================================
          CONTROLS  (pointer lock)
          ============================================================ */
       const keys = {};
@@ -4653,12 +4700,15 @@
             if (heightAt(nx, nz) > WATER + 0.6) {
               s.g.position.x = nx; s.g.position.z = nz;
             } else {
-              // Blocked by water: turn away and pause briefly (don't keep shoving forward).
-              s.ang += Math.PI * (0.65 + rnd() * 0.35);
-              s.state = 'idle';
-              s.stateT = 0.9;
-              s.spd = 0;
-              playAnimalAction(s, 'idle');
+              // Would step into water: steer toward higher ground (inland) and keep
+              // walking, so it calmly leaves the shore instead of jittering at the edge.
+              const gx = heightAt(s.g.position.x + 2, s.g.position.z) - heightAt(s.g.position.x - 2, s.g.position.z);
+              const gz = heightAt(s.g.position.x, s.g.position.z + 2) - heightAt(s.g.position.x, s.g.position.z - 2);
+              if (gx * gx + gz * gz > 1e-6) s.ang = Math.atan2(gx, gz);
+              else s.ang += Math.PI;
+              s.state = 'walk'; s.spd = s.sp;
+              if (s.stateT < 0.5) s.stateT = 1.5 + rnd() * 2;
+              playAnimalAction(s, 'walk');
             }
           }
           const lim = WORLD * 0.5 - 5;
@@ -4991,20 +5041,33 @@
         body.position.set(player.position.x, player.position.y, player.position.z);
         body.rotation.y = yaw;
         const sw = Math.sin(bob), m = moveAmt;
-        // hips swing fore/aft; knees flex on the forward swing to clear the ground
-        legLj.hip.rotation.x = sw * 0.85 * m;
-        legRj.hip.rotation.x = -sw * 0.85 * m;
-        legLj.knee.rotation.x = (0.12 + Math.max(0, -sw) * 1.15) * m;
-        legRj.knee.rotation.x = (0.12 + Math.max(0, sw) * 1.15) * m;
-        // arms swing opposite the legs, with a natural elbow bend
-        armLj.sh.rotation.x = -sw * 0.6 * m;
-        armRj.sh.rotation.x = sw * 0.6 * m;
-        armLj.elbow.rotation.x = -(0.25 + Math.abs(sw) * 0.35) * m;
-        armRj.elbow.rotation.x = -(0.25 + Math.abs(sw) * 0.35) * m;
-        // attack swing on the right arm (visible in third-person)
-        if (swingT > 0) { const k = Math.sin(Math.min(1, swingT / 0.28) * Math.PI); armRj.sh.rotation.x = -1.9 * k; armRj.sh.rotation.z = -0.3 * k; armRj.elbow.rotation.x = -1.1 * k; } else { armRj.sh.rotation.z = 0; }
+        if (!usingDwarf) {
+          // ---- legacy box avatar gait ----
+          // hips swing fore/aft; knees flex on the forward swing to clear the ground
+          legLj.hip.rotation.x = sw * 0.85 * m;
+          legRj.hip.rotation.x = -sw * 0.85 * m;
+          legLj.knee.rotation.x = (0.12 + Math.max(0, -sw) * 1.15) * m;
+          legRj.knee.rotation.x = (0.12 + Math.max(0, sw) * 1.15) * m;
+          // arms swing opposite the legs, with a natural elbow bend
+          armLj.sh.rotation.x = -sw * 0.6 * m;
+          armRj.sh.rotation.x = sw * 0.6 * m;
+          armLj.elbow.rotation.x = -(0.25 + Math.abs(sw) * 0.35) * m;
+          armRj.elbow.rotation.x = -(0.25 + Math.abs(sw) * 0.35) * m;
+          // attack swing on the right arm (visible in third-person)
+          if (swingT > 0) { const k = Math.sin(Math.min(1, swingT / 0.28) * Math.PI); armRj.sh.rotation.x = -1.9 * k; armRj.sh.rotation.z = -0.3 * k; armRj.elbow.rotation.x = -1.1 * k; } else { armRj.sh.rotation.z = 0; }
+          head.visible = third;
+        } else if (playerMixer && third) {
+          // ---- animated dwarf: pick a clip from the movement state ----
+          let act = 'idle';
+          if (swingT > 0 && playerActions.attack) act = 'attack';
+          else if (!onGround && playerActions.jump) act = 'jump';
+          else if (hsp > 8.5 && playerActions.run) act = 'run';
+          else if (hsp > 0.5 && playerActions.walk) act = 'walk';
+          setPlayerAction(act);
+          playerMixer.update(dt);
+        }
         // show the full character only in third-person; first-person shows just the hands
-        body.visible = third; head.visible = third; vm.visible = !third;
+        body.visible = third; vm.visible = !third;
 
         // viewmodel arm sway/bob
         vmL.rotation.x = -0.5 + Math.sin(bob) * 0.18 * moveAmt;
