@@ -5018,7 +5018,15 @@
         const feet = _hf !== null ? _hf : groundH;
         const submerged = mode === 'fps' && (player.position.y + EYE) < WATER;
         if (submerged) { vy = Math.max(vy * 0.9, -2.6); if (keys['Space']) vy += 22 * dt; } // buoyant drag + swim up
-        if (player.position.y <= feet) { player.position.y = feet; vy = 0; onGround = true; } else onGround = false;
+        if (player.position.y <= feet) {
+          player.position.y = feet; vy = 0; onGround = true;
+        } else if (vy <= 0 && !submerged && (player.position.y - feet) < 1.0 && Math.hypot(vel.x, vel.z) > 0.3) {
+          // Walking down a slope: the ground drops a little each frame. Stick to it
+          // instead of briefly launching into the air (which caused the downhill
+          // "slide + jitter"). Ascending was already fine because the ground rises
+          // up to meet the player.
+          player.position.y = feet; vy = 0; onGround = true;
+        } else onGround = false;
         if (mode === 'fps' && !submerged && keys['Space'] && onGround) { vy = 9.2; onGround = false; sfxJump(); }
 
         // head bob + gait driven by ACTUAL horizontal speed -> always animates while moving (even when gliding to a stop)
