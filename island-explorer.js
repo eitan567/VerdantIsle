@@ -1594,6 +1594,7 @@
       syncMenuOverlayChrome();
       /* ---- procedural audio: ambient music + ocean wave ambience + SFX (Web Audio, no files) ---- */
       let _actx = null, _master = null, _mGain = null, _ambGain = null, _sfxGain = null, _mTimer = null, musicOn = true, _musicStarted = false, _volume = 0.9, currentBiome = 'Meadow';
+      let _combatGain = null, _introDone = false;
       function startMusic() {
         if (_musicStarted) { if (_actx && _actx.state === 'suspended') _actx.resume(); return; }
         try {
@@ -1646,11 +1647,27 @@
             so.start(stt); so.stop(stt + 2.7);
           }
           pad(); _mTimer = setInterval(pad, 7000);
+
+          // --- combat layer: pulsing low bass + tense bandpassed drone (gain driven by danger) ---
+          _combatGain = _actx.createGain(); _combatGain.gain.value = 0; _combatGain.connect(_master);
+          const cbOsc = _actx.createOscillator(); cbOsc.type = 'sawtooth'; cbOsc.frequency.value = 55;
+          const cbF = _actx.createBiquadFilter(); cbF.type = 'lowpass'; cbF.frequency.value = 320;
+          const cbPulse = _actx.createGain(); cbPulse.gain.value = 0;
+          cbOsc.connect(cbF); cbF.connect(cbPulse); cbPulse.connect(_combatGain);
+          const cbLfo = _actx.createOscillator(); cbLfo.type = 'square'; cbLfo.frequency.value = 2.7; // driving pulse
+          const cbLfoG = _actx.createGain(); cbLfoG.gain.value = 0.45; cbLfo.connect(cbLfoG); cbLfoG.connect(cbPulse.gain);
+          const cbConst = _actx.createConstantSource(); cbConst.offset.value = 0.5; cbConst.connect(cbPulse.gain);
+          const cbDrone = _actx.createOscillator(); cbDrone.type = 'sawtooth'; cbDrone.frequency.value = 146.83;
+          const cbDroneF = _actx.createBiquadFilter(); cbDroneF.type = 'bandpass'; cbDroneF.frequency.value = 620; cbDroneF.Q.value = 3.5;
+          const cbDroneG = _actx.createGain(); cbDroneG.gain.value = 0.07; cbDrone.connect(cbDroneF); cbDroneF.connect(cbDroneG); cbDroneG.connect(_combatGain);
+          cbOsc.start(); cbLfo.start(); cbConst.start(); cbDrone.start();
+
+          setTimeout(() => { _introDone = true; }, 4200);
           _musicStarted = true;
         } catch (e) {
           if (_mTimer) { clearInterval(_mTimer); _mTimer = null; }
-          _actx = _master = _mGain = _ambGain = _sfxGain = null;
-          _musicStarted = false;
+          _actx = _master = _mGain = _ambGain = _sfxGain = _combatGain = null;
+          _musicStarted = false; _introDone = false;
           console.warn('Audio startup failed; will retry on the next interaction.', e);
         }
       }
@@ -1683,6 +1700,33 @@
         for (let i = 0; i < len; i++)d[i] = (Math.random() * 2 - 1) * (1 - i / len);
         const s = _actx.createBufferSource(); s.buffer = b; const bp = _actx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.setValueAtTime(1400, t0); bp.frequency.exponentialRampToValueAtTime(500, t0 + 0.35); bp.Q.value = 0.8;
         const g = _actx.createGain(); g.gain.value = 0.32; s.connect(bp); bp.connect(g); g.connect(_sfxGain); s.start(t0);
+      }
+      // punchy melee impact: filtered noise crack + low thud
+      function sfxThwack(strong) {
+        if (!_actx) return; const t0 = _actx.currentTime;
+        const len = (_actx.sampleRate * 0.16) | 0, b = _actx.createBuffer(1, len, _actx.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const s = _actx.createBufferSource(); s.buffer = b;
+        const bp = _actx.createBiquadFilter(); bp.type = 'lowpass'; bp.frequency.setValueAtTime(strong ? 1100 : 800, t0); bp.frequency.exponentialRampToValueAtTime(180, t0 + 0.13);
+        const g = _actx.createGain(); g.gain.setValueAtTime(strong ? 0.5 : 0.34, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.17);
+        s.connect(bp); bp.connect(g); g.connect(_sfxGain); s.start(t0);
+        const o = _actx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(strong ? 180 : 150, t0); o.frequency.exponentialRampToValueAtTime(48, t0 + 0.15);
+        const og = _actx.createGain(); og.gain.setValueAtTime(strong ? 0.4 : 0.28, t0); og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+        o.connect(og); og.connect(_sfxGain); o.start(t0); o.stop(t0 + 0.22);
+      }
+      // player taking damage: pained downward growl
+      function sfxPlayerHurt() {
+        if (!_actx) return; const t0 = _actx.currentTime;
+        const o = _actx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(340, t0); o.frequency.exponentialRampToValueAtTime(95, t0 + 0.26);
+        const lp = _actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1300;
+        const g = _actx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.24, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+        o.connect(lp); lp.connect(g); g.connect(_sfxGain); o.start(t0); o.stop(t0 + 0.32);
+      }
+      // dynamic combat music intensity (0..1) ramped each frame
+      function setCombatIntensity(x) {
+        if (!_actx || !_combatGain) return;
+        _combatGain.gain.setTargetAtTime((musicOn ? 0.22 : 0) * x, _actx.currentTime, 0.25);
+        if (_introDone && _mGain) _mGain.gain.setTargetAtTime((musicOn ? 0.16 : 0) * (1 - 0.55 * x), _actx.currentTime, 0.35);
       }
       function setVolume(v) { _volume = v; if (_master) _master.gain.setTargetAtTime(v, _actx.currentTime, 0.05); }
       addEventListener('keydown', e => { if (!menuOverlayVisible() && e.code === 'KeyM') setMusic(!musicOn); });
@@ -2404,6 +2448,37 @@
           });
         });
       })();
+      /* ---- impact particle burst (blood / goo) — pooled meshes that fly out, fall, and fade ---- */
+      const _bloodPool = [], _bloodActive = [];
+      const _bloodGeo = new THREE.SphereGeometry(0.08, 5, 4);
+      function spawnBurst(x, y, z, colorHex, count) {
+        count = count || 14;
+        for (let i = 0; i < count; i++) {
+          let p = _bloodPool.pop();
+          if (!p) { p = new THREE.Mesh(_bloodGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })); scene.add(p); }
+          p.material.color.setHex(colorHex); p.material.opacity = 1; p.visible = true;
+          p.position.set(x, y, z);
+          const ang = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 5;
+          const u = p.userData;
+          u.vx = Math.cos(ang) * sp; u.vz = Math.sin(ang) * sp; u.vy = 2.5 + Math.random() * 5;
+          u.life = u.maxLife = 0.5 + Math.random() * 0.45; u.baseS = 0.55 + Math.random() * 0.9;
+          p.scale.setScalar(u.baseS);
+          _bloodActive.push(p);
+        }
+      }
+      function updateBurst(dt) {
+        for (let i = _bloodActive.length - 1; i >= 0; i--) {
+          const p = _bloodActive[i], u = p.userData;
+          u.life -= dt;
+          if (u.life <= 0) { p.visible = false; _bloodActive.splice(i, 1); _bloodPool.push(p); continue; }
+          u.vy -= 15 * dt;
+          p.position.x += u.vx * dt; p.position.y += u.vy * dt; p.position.z += u.vz * dt;
+          const f = u.life / u.maxLife;
+          p.material.opacity = f; p.scale.setScalar(u.baseS * (0.4 + 0.6 * f));
+        }
+      }
+      let camShake = 0;                 // decaying camera-shake amount (hits add to it)
+      let _nearestEnemyDist = Infinity; // updated each frame for combat-music intensity
       const _slimeG = new THREE.IcosahedronGeometry(0.62, 1);
       const _slimeMats = [new THREE.MeshStandardMaterial({ color: 0x7ac74f, roughness: 0.55, flatShading: true }),
       new THREE.MeshStandardMaterial({ color: 0xb05fd6, roughness: 0.55, flatShading: true }),
@@ -2411,14 +2486,21 @@
       const _eyeG = new THREE.SphereGeometry(0.09, 6, 6), _eyeMat = new THREE.MeshStandardMaterial({ color: 0x16110f, roughness: 0.4 });
       function spawnSlime(x, z) {
         const g = new THREE.Group(); g.position.set(x, Math.max(heightAt(x, z), WATER), z);
-        const body = new THREE.Mesh(_slimeG, _slimeMats[(Math.random() * _slimeMats.length) | 0]); body.position.y = 0.55; body.castShadow = true; g.add(body);
+        const mat = _slimeMats[(Math.random() * _slimeMats.length) | 0];
+        const body = new THREE.Mesh(_slimeG, mat); body.position.y = 0.55; body.castShadow = true; g.add(body);
         const e1 = new THREE.Mesh(_eyeG, _eyeMat); e1.position.set(0.2, 0.7, 0.5); body.add(e1);
         const e2 = new THREE.Mesh(_eyeG, _eyeMat); e2.position.set(-0.2, 0.7, 0.5); body.add(e2);
-        g.userData = { body, hp: 3, ang: Math.random() * 6.28, t: Math.random() * 9, dir: 1 + Math.random() * 3, cd: 0 };
+        g.userData = { body, hp: 3, ang: Math.random() * 6.28, t: Math.random() * 9, dir: 1 + Math.random() * 3, cd: 0, tint: mat.color.getHex() };
         scene.add(g); enemies.push(g);
       }
       for (let i = 0; i < 9; i++) { for (let tr = 0; tr < 50; tr++) { const x = (rnd() - 0.5) * WORLD * 0.6, z = (rnd() - 0.5) * WORLD * 0.6; if (heightAt(x, z) > WATER + 1.5) { spawnSlime(x, z); break; } } }
-      function hurtPlayer(n) { playerHP -= n; hurtFlash = 0.15; const d = document.getElementById('dmg'); if (d) { d.classList.add('hit'); setTimeout(() => d.classList.remove('hit'), 120); } if (playerHP <= 0) { playerHP = 100; respawn(); } const e = document.getElementById('hpNum'); if (e) e.textContent = Math.max(0, playerHP | 0); }
+      function hurtPlayer(n) {
+        playerHP -= n; hurtFlash = 0.15; camShake = Math.max(camShake, 0.3); sfxPlayerHurt();
+        spawnBurst(player.position.x, player.position.y - 0.5, player.position.z, 0xcc1818, 12);
+        const d = document.getElementById('dmg'); if (d) { d.classList.add('hit'); setTimeout(() => d.classList.remove('hit'), 120); }
+        if (playerHP <= 0) { playerHP = 100; respawn(); }
+        const e = document.getElementById('hpNum'); if (e) e.textContent = Math.max(0, playerHP | 0);
+      }
 
       /* ============================================================
          TREASURE — golden keys + lockable chests with loot
@@ -3146,20 +3228,45 @@
         swingDur = swingT = target;
         if (_atkAction) _atkAction.timeScale = _atkAction.getClip().duration / target;
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+        const heavy = attackAnim === 'kick3';
+        let landed = false;
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], dx = e.position.x - player.position.x, dz = e.position.z - player.position.z, d = Math.hypot(dx, dz) || 1;
           if (d < 4.2 && (dx * fx + dz * fz) / d > 0.35) {
-            e.userData.hp -= playerDmg; sfxHit();
-            if (e.userData.hp <= 0) { scene.remove(e); enemies.splice(i, 1); kills++; const k = document.getElementById('kills'); if (k) k.textContent = kills; sfxCollect(); }
+            landed = true;
+            e.userData.hp -= playerDmg * (heavy ? 2 : 1);
+            const col = e.userData.tint || 0x7ac74f;
+            spawnBurst(e.position.x, e.position.y + 0.7, e.position.z, col, heavy ? 22 : 14);
+            // knockback
+            e.position.x += (dx / d) * (heavy ? 1.1 : 0.5); e.position.z += (dz / d) * (heavy ? 1.1 : 0.5);
+            if (e.userData.hp <= 0) {
+              spawnBurst(e.position.x, e.position.y + 0.6, e.position.z, col, 26);
+              scene.remove(e); enemies.splice(i, 1); kills++; const k = document.getElementById('kills'); if (k) k.textContent = kills; sfxCollect();
+            }
           }
         }
+        sfxWhoosh(heavy);                       // swing whoosh on every attack
+        if (landed) { sfxThwack(heavy); camShake = Math.max(camShake, heavy ? 0.22 : 0.12); }
+      }
+      // quick swing whoosh: short band-passed noise sweep
+      function sfxWhoosh(heavy) {
+        if (!_actx) return; const t0 = _actx.currentTime, len = (_actx.sampleRate * 0.22) | 0;
+        const b = _actx.createBuffer(1, len, _actx.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1);
+        const s = _actx.createBufferSource(); s.buffer = b;
+        const bp = _actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+        bp.frequency.setValueAtTime(heavy ? 500 : 750, t0); bp.frequency.exponentialRampToValueAtTime(heavy ? 220 : 340, t0 + 0.2);
+        const g = _actx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(heavy ? 0.16 : 0.1, t0 + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+        s.connect(bp); bp.connect(g); g.connect(_sfxGain); s.start(t0);
       }
       function sfxHit() { if (!_actx) return; const t0 = _actx.currentTime, o = _actx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(180, t0); o.frequency.exponentialRampToValueAtTime(60, t0 + 0.12); const g = _actx.createGain(); o.connect(g); g.connect(_sfxGain); g.gain.setValueAtTime(0.18, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14); o.start(t0); o.stop(t0 + 0.16); }
       function updateEnemies(dt, t) {
         underAttack = false;
+        _nearestEnemyDist = Infinity;
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], u = e.userData; u.t += dt; u.cd -= dt; u.dir -= dt;
           const dx = player.position.x - e.position.x, dz = player.position.z - e.position.z, dist = Math.hypot(dx, dz);
+          if (dist < _nearestEnemyDist) _nearestEnemyDist = dist;
           if (mode === 'fps' && !parrotMode && dist < 2.5) underAttack = true;
           if (mode === 'fps' && !parrotMode && dist < 13) { u.ang = Math.atan2(dx, dz); } else if (u.dir <= 0) { u.ang += (Math.random() - 0.5) * 2.5; u.dir = 2 + Math.random() * 3; }
           const sp = 2.4 * dt; const nx = e.position.x + Math.sin(u.ang) * sp, nz = e.position.z + Math.cos(u.ang) * sp;
@@ -3501,6 +3608,13 @@
             camera.position.set(_acX + Math.cos(bob * 0.5) * 0.04 * moveAmt, _acY + Math.sin(bob) * 0.07 * moveAmt, _acZ);
             camera.rotation.set(pitch + _acP, 0, 0);
           }
+          // combat camera shake on hits — jitter position + a little roll, decaying
+          if (camShake > 0.001) {
+            camera.position.x += (Math.random() - 0.5) * camShake;
+            camera.position.y += (Math.random() - 0.5) * camShake;
+            camera.rotation.z += (Math.random() - 0.5) * camShake * 0.25;
+            camShake = Math.max(0, camShake - dt * 1.6);
+          }
         }
 
         // visible body follows player, yawed, with walking gait
@@ -3655,6 +3769,11 @@
         setShadowFocus(fX, fY, fZ, shHalf);
 
         updateEnemies(dt, t);
+        updateBurst(dt);         // blood/goo particles fly out and fade
+        // dynamic combat music: full when an enemy is close, fades in as danger nears
+        { const d = _nearestEnemyDist; let ci = 0;
+          if (mode === 'fps' && !parrotMode) ci = d < 6 ? 1 : (d < 18 ? (18 - d) / 12 : 0);
+          setCombatIntensity(ci); }
         updateWildlife(dt, t);   // birds circle overhead; ground animals roam and flee enemies
         updateLootFx(dt);        // loot icons fly from the chest to the player
         updateHouses(dt);   // open doors near the player, fade walls + light up when inside
