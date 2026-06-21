@@ -19,3 +19,5 @@ Original prompt: יש בעיה באנימציה של החיות כמו horse, de
 - Capped flee speed when using the walk clip as a gallop fallback so the feet do not visibly slide across the ground.
 - Let gallop continue briefly after a threat leaves range instead of dropping straight to idle, which prevents rapid action switching at the threat boundary.
 - Re-ran the shared-action regression probe, inline script parse check, and the web-game Playwright skill client with no console errors.
+
+- User chose a clean reset for the Stag issue: removed only the Stag-specific UI/runtime wiring (stag wildlife definition and Stag.fbx ground-animal config). The asset file was not changed or deleted. Verified island-explorer.html has no stag/Stag references, script parse passes, and browser network loading no longer requests models/Stag.fbx.
