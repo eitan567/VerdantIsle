@@ -847,6 +847,9 @@
       const boxParts = [];
       body.traverse(o => { if (o.isMesh) boxParts.push(o); });
       let usingDwarf = false, playerMixer = null, playerRig = null, playerHeadBone = null;
+      const _fpsCollapse = [];  // spine/neck/head -> shrink to ~0 in FPS (hides torso + head)
+      const _fpsRestore  = [];  // shoulders -> inflate by 1/eps so the arms survive the collapse
+      const FPS_EPS = 0.001;
       const playerActions = {};
       let playerCur = '';
       function setPlayerAction(name, fade = 0.18) {
@@ -869,8 +872,16 @@
           fbx.rotation.y = Math.PI;                      // face the player's forward (-Z)
           fbx.traverse(o => {
             if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; }
-            if (o.isBone && !playerHeadBone && o.name.toLowerCase().indexOf('head') >= 0) playerHeadBone = o;
+            if (o.isBone) {
+              const n = o.name.toLowerCase();
+              // collapse the base spine (whole torso + head + arms shrink with it)...
+              if (n.endsWith('spine') || n.indexOf('spine ') >= 0) _fpsCollapse.push(o);
+              // ...then restore the arms by inflating the shoulders (children of spine2)
+              if (n.indexOf('shoulder') >= 0) _fpsRestore.push(o);
+              if (n.indexOf('head') >= 0 && !playerHeadBone) playerHeadBone = o;
+            }
           });
+          console.log('[FPS collapse]', _fpsCollapse.map(b => b.name), '[restore]', _fpsRestore.map(b => b.name));
           body.add(fbx);
           playerRig = fbx;
           playerMixer = new THREE.AnimationMixer(fbx);
@@ -1563,7 +1574,16 @@
         document.removeEventListener('mouseup', onMouseUp);
       }
       let pitch = 0, yaw = 0, locked = false;
-      document.addEventListener('mousemove', e => { if (!locked || menuCameraTransitionActive()) return; yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022; pitch = Math.max(-1.3, Math.min(1.3, pitch)); });
+      document.addEventListener('mousemove', e => {
+        if (!locked || menuCameraTransitionActive()) return;
+        // TEMP: CTRL in third-person -> orbit camera around the character (don't turn player)
+        if ((keys['ControlLeft'] || keys['ControlRight']) && mode === 'fps' && view === 'third' && !parrotMode) {
+          _oa -= e.movementX * 0.0045;
+          _oe = Math.max(-0.4, Math.min(1.3, _oe + e.movementY * 0.0045));
+          return;
+        }
+        yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022; pitch = Math.max(-1.3, Math.min(1.3, pitch));
+      });
       const overlay = document.getElementById('overlay');
       new MutationObserver(syncMenuOverlayChrome).observe(overlay, { attributes: true, attributeFilter: ['class', 'style'] });
       syncMenuOverlayChrome();
@@ -2321,6 +2341,53 @@
       const enemies = [];
       let playerHP = 100, kills = 0, swingT = 0, swingDur = 0.7, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0, underAttack = false;
       let attackAnim = 'punch';
+      // ---- FPS camera offset (tuned) + hidden debug panel (toggle via Settings) ----
+      let _acX = 0, _acY = 1.9, _acZ = -0.3, _acP = 0;
+      let _fpsTuneVisible = false;
+      // TEMP: physical marker showing where the FPS camera sits (visible only in third-person)
+      const _camMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0xff1144, depthTest: false })
+      );
+      _camMarker.renderOrder = 9999;
+      _camMarker.visible = false;
+      const _camMarkerDir = new THREE.Mesh(
+        new THREE.ConeGeometry(0.09, 0.4, 8),
+        new THREE.MeshBasicMaterial({ color: 0x11ddff, depthTest: false })
+      );
+      _camMarkerDir.renderOrder = 9999;
+      _camMarkerDir.rotation.x = -Math.PI / 2;   // point cone toward -Z (camera look dir)
+      _camMarkerDir.position.z = -0.35;
+      _camMarker.add(_camMarkerDir);
+      body.add(_camMarker);   // same position+yaw as player, so marker matches camera local offset
+      // TEMP: CTRL-hold orbit-around-character (third-person inspection)
+      let _oa = 0, _oe = 0.35;
+      const _orbitTarget = new THREE.Vector3();
+      (function() {
+        const p = document.createElement('div');
+        p.id = 'atkCamDbg';
+        p.style.cssText = 'position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.82);color:#fff;font:13px monospace;padding:10px 14px;border-radius:8px;z-index:9999;min-width:230px;display:none';
+        function row(label, id, min, max, step, val) {
+          return `<div style="margin:5px 0">${label}: <b id="${id}v">${val}</b><br>
+            <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" style="width:210px"></div>`;
+        }
+        p.innerHTML = '<b style="color:#ff0">FPS Tuning</b><br>' +
+          row('X (צד)', 'acX', -1, 1, 0.05, _acX) +
+          row('Y (גובה מצלמה)', 'acY', 0.5, 5, 0.05, _acY) +
+          row('Z (קדימה-)', 'acZ', -2, 2, 0.05, _acZ) +
+          row('Pitch (מטה)', 'acP', -0.5, 1.5, 0.05, _acP) +
+          '<small style="color:#aaa">רחף לשחרור עכבר</small>';
+        document.body.appendChild(p);
+        p.addEventListener('mouseenter', () => document.exitPointerLock());
+        ['acX','acY','acZ','acP'].forEach(id => {
+          document.getElementById(id).addEventListener('input', function() {
+            const v = parseFloat(this.value);
+            document.getElementById(id+'v').textContent = v;
+            if(id==='acX') _acX=v; if(id==='acY') _acY=v;
+            if(id==='acZ') _acZ=v; if(id==='acP') _acP=v;
+          });
+        });
+      })();
       const _slimeG = new THREE.IcosahedronGeometry(0.62, 1);
       const _slimeMats = [new THREE.MeshStandardMaterial({ color: 0x7ac74f, roughness: 0.55, flatShading: true }),
       new THREE.MeshStandardMaterial({ color: 0xb05fd6, roughness: 0.55, flatShading: true }),
@@ -3392,16 +3459,24 @@
         const third = !parrotMode && mode === 'fps' && view === 'third';
         if (!parrotMode) {
           if (third) {   // orbit camera behind/above the visible character
-            const tp = Math.max(-0.6, Math.min(1.0, pitch)), dist = 6.4, ty = 2.6;
-            camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
-            camera.rotation.set(tp, 0, 0);
-          } else if (swingT > 0) {
-            // attack cam: chest level, slightly forward, looking down to see arms/legs
-            camera.position.set(0, 2.1, -0.4);
-            camera.rotation.set(pitch + 0.3, 0, 0);
+            const dist = 6.4, ty = 2.6;
+            if (keys['ControlLeft'] || keys['ControlRight']) {
+              // free orbit around the character for inspecting camera marker
+              camera.position.set(
+                dist * Math.sin(_oa) * Math.cos(_oe),
+                ty + dist * Math.sin(_oe),
+                dist * Math.cos(_oa) * Math.cos(_oe)
+              );
+              player.updateMatrixWorld();
+              camera.lookAt(player.localToWorld(_orbitTarget.set(0, ty, 0)));
+            } else {
+              const tp = Math.max(-0.6, Math.min(1.0, pitch));
+              camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
+              camera.rotation.set(tp, 0, 0);
+            }
           } else {
-            camera.position.set(Math.cos(bob * 0.5) * 0.04 * moveAmt, EYE + Math.sin(bob) * 0.07 * moveAmt, 0);
-            camera.rotation.set(pitch, 0, 0);
+            camera.position.set(_acX + Math.cos(bob * 0.5) * 0.04 * moveAmt, _acY + Math.sin(bob) * 0.07 * moveAmt, _acZ);
+            camera.rotation.set(pitch + _acP, 0, 0);
           }
         }
 
@@ -3434,8 +3509,18 @@
           setPlayerAction(act, (act === 'punch' || act === 'kick') ? 0.05 : 0.18);
           playerMixer.update(swingT > 0 ? dt * 2 : dt);
         }
-        // body visible in third-person; during FPS attack briefly show actual model
-        body.visible = third || (!parrotMode && !third && swingT > 0);
+        // FPS first-person: collapse torso/head, inflate shoulders back so only arms+legs show.
+        // Third-person: everything at scale 1. (Must run AFTER mixer.update, which sets bone transforms.)
+        body.visible = !parrotMode;
+        if (usingDwarf && _fpsCollapse.length) {
+          const fps = !third && !parrotMode;
+          for (const b of _fpsCollapse) b.scale.setScalar(fps ? FPS_EPS : 1);
+          for (const b of _fpsRestore)  b.scale.setScalar(fps ? 1 / FPS_EPS : 1);
+        }
+        // debug camera marker — only when FPS tuning panel is enabled, in third-person
+        _camMarker.position.set(_acX, _acY, _acZ);
+        _camMarker.rotation.set(_acP, 0, 0);
+        _camMarker.visible = third && _fpsTuneVisible;
         vm.visible = false;
 
         // viewmodel bob and attack animation
@@ -3592,6 +3677,12 @@
         $('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) { closeSettingsPanel(); } });
         document.querySelector('#settingsModal .modalCard').addEventListener('click', e => { e.stopPropagation(); });
         $('sMusic').addEventListener('click', () => { startMusic(); setMusic(!musicOn); });
+        if ($('sFpsTune')) $('sFpsTune').addEventListener('change', e => {
+          e.stopPropagation();
+          _fpsTuneVisible = $('sFpsTune').checked;
+          const dbg = document.getElementById('atkCamDbg');
+          if (dbg) dbg.style.display = _fpsTuneVisible ? 'block' : 'none';
+        });
         $('sVol').addEventListener('input', () => { const v = +$('sVol').value; $('vVol').textContent = v + '%'; setVolume(v / 100); });
         $('sSaveB').addEventListener('click', saveBuild);
         $('sLoadB').addEventListener('click', loadBuild);
