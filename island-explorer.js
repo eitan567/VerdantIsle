@@ -3067,14 +3067,14 @@
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], u = e.userData; u.t += dt; u.cd -= dt; u.dir -= dt;
           const dx = player.position.x - e.position.x, dz = player.position.z - e.position.z, dist = Math.hypot(dx, dz);
-          if (mode === 'fps' && dist < 13) { u.ang = Math.atan2(dx, dz); } else if (u.dir <= 0) { u.ang += (Math.random() - 0.5) * 2.5; u.dir = 2 + Math.random() * 3; }
+          if (mode === 'fps' && !parrotMode && dist < 13) { u.ang = Math.atan2(dx, dz); } else if (u.dir <= 0) { u.ang += (Math.random() - 0.5) * 2.5; u.dir = 2 + Math.random() * 3; }
           const sp = 2.4 * dt; const nx = e.position.x + Math.sin(u.ang) * sp, nz = e.position.z + Math.cos(u.ang) * sp;
           if (heightAt(nx, nz) > WATER) { e.position.x = nx; e.position.z = nz; } else { u.ang += Math.PI; }
           const lim = WORLD * 0.5 - 4; e.position.x = Math.max(-lim, Math.min(lim, e.position.x)); e.position.z = Math.max(-lim, Math.min(lim, e.position.z));
           e.position.y = Math.max(heightAt(e.position.x, e.position.z), WATER); e.rotation.y = u.ang;
           u.body.position.y = 0.45 + Math.abs(Math.sin(u.t * 5)) * 0.3; // hop
-          if (mode === 'fps' && dist < 1.7 && u.cd <= 0) { hurtPlayer(11); u.cd = 1.0; }
-          if (mode === 'fps' && dist < 1.05 && dist > 1e-4) { const k = (1.05 - dist) / dist; player.position.x += dx * k; player.position.z += dz * k; } // can't walk through a slime
+          if (mode === 'fps' && !parrotMode && dist < 1.7 && u.cd <= 0) { hurtPlayer(11); u.cd = 1.0; }
+          if (mode === 'fps' && !parrotMode && dist < 1.05 && dist > 1e-4) { const k = (1.05 - dist) / dist; player.position.x += dx * k; player.position.z += dz * k; } // can't walk through a slime
         }
       }
       normalizeShadowCastingMaterials(scene);
