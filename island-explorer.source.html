@@ -939,7 +939,7 @@
       color: #7fe7c4;
     }
 
-    #wildlifeList .spin button + button {
+    #wildlifeList .spin button+button {
       border-top: 1px solid #2a3f4f;
     }
 
@@ -1624,7 +1624,8 @@
 
   <div id="settingsModal" class="hidden">
     <div class="modalCard">
-      <div class="modalHead"><span><span class="ui-ic">⚙</span> Settings</span><button id="settingsClose">✕</button></div>
+      <div class="modalHead"><span><span class="ui-ic">⚙</span> Settings</span><button id="settingsClose">✕</button>
+      </div>
       <div id="sliders">
         <div class="setCols">
           <div class="setCol">
@@ -1638,7 +1639,8 @@
             <div class="setSec">Audio</div>
             <div class="row"><label>Master volume <b id="vVol">90%</b></label><input type="range" id="sVol" min="0"
                 max="100" value="90"></div>
-            <div class="btns"><button id="sMusic" class="alt" style="flex:1"><span class="ui-ic">🔊</span> Music: On</button></div>
+            <div class="btns"><button id="sMusic" class="alt" style="flex:1"><span class="ui-ic">🔊</span> Music:
+                On</button></div>
             <div class="setSec">AI Spirit Model</div>
             <div class="row">
               <select id="sAiModel">
@@ -2670,7 +2672,7 @@
       (function loadPlayerModel() {
         if (!THREE.FBXLoader) return;
         const loader = new THREE.FBXLoader();
-        const CLIP_FILES = { walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', attack: 'Mma Kick.fbx' };
+        const CLIP_FILES = { walk: 'Walking.fbx', run: 'Running.fbx', jump: 'Jumping.fbx', attack: 'Mma Kick.fbx' };
         loader.load('models/character/Dwarf Idle.fbx', fbx => {
           const bbox = new THREE.Box3().setFromObject(fbx);
           const size = bbox.getSize(new THREE.Vector3());
@@ -4260,11 +4262,11 @@
          sets a per-species instance count, then hits "Apply wildlife". This lets
          us isolate which model/species causes a given problem. */
       const WILDLIFE_DEFS = [
-        { key: 'bird',   label: 'Birds',   desc: 'Procedural low-poly birds',  def: 14 },
-        { key: 'rabbit', label: 'Rabbits', desc: 'Procedural rabbits',         def: 10 },
+        { key: 'bird', label: 'Birds', desc: 'Procedural low-poly birds', def: 14 },
+        { key: 'rabbit', label: 'Rabbits', desc: 'Procedural rabbits', def: 10 },
         { key: 'parrot', label: 'Parrots', desc: 'GLTF animated parrot flock', def: 9 },
-        { key: 'horse',  label: 'Horse',   desc: 'FBX horse',                  def: 4 },
-        { key: 'deer',   label: 'Deer',    desc: 'FBX deer (antlerless)',      def: 5 }
+        { key: 'horse', label: 'Horse', desc: 'FBX horse', def: 4 },
+        { key: 'deer', label: 'Deer', desc: 'FBX deer (antlerless)', def: 5 }
       ];
       const wildlifeCounts = (() => {
         const d = {};
@@ -4272,11 +4274,11 @@
         try {
           const s = JSON.parse(localStorage.getItem('vi_wildlife') || 'null');
           if (s) WILDLIFE_DEFS.forEach(w => { if (s[w.key]) d[w.key] = { on: !!s[w.key].on, n: Math.max(0, Math.min(200, s[w.key].n | 0)) }; });
-        } catch (e) {}
+        } catch (e) { }
         return d;
       })();
       function wcount(key) { const c = wildlifeCounts[key]; return c && c.on ? c.n : 0; }
-      function saveWildlifeCounts() { try { localStorage.setItem('vi_wildlife', JSON.stringify(wildlifeCounts)); } catch (e) {} }
+      function saveWildlifeCounts() { try { localStorage.setItem('vi_wildlife', JSON.stringify(wildlifeCounts)); } catch (e) { } }
       function clearWildlife(arr) { for (let i = 0; i < arr.length; i++) if (arr[i].g) scene.remove(arr[i].g); arr.length = 0; }
       let spawnBirds, spawnRabbits, spawnParrots;
 
@@ -4460,9 +4462,9 @@
         const fx = Math.sin(heading), fz = Math.cos(heading);
         const ground = Math.max((
           heightAt(g.position.x - fx * 2, g.position.z - fz * 2) +
-          heightAt(g.position.x - fx,     g.position.z - fz    ) +
-          heightAt(g.position.x,           g.position.z          ) +
-          heightAt(g.position.x + fx,     g.position.z + fz    ) +
+          heightAt(g.position.x - fx, g.position.z - fz) +
+          heightAt(g.position.x, g.position.z) +
+          heightAt(g.position.x + fx, g.position.z + fz) +
           heightAt(g.position.x + fx * 2, g.position.z + fz * 2)
         ) * 0.2, WATER);
         const targetY = ground + yOffset;
