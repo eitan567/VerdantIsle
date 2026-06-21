@@ -862,7 +862,12 @@
       (function loadPlayerModel() {
         if (!THREE.FBXLoader) return;
         const loader = new THREE.FBXLoader();
-        const CLIP_FILES = { walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', punch: 'Hook Punch.fbx', kick: 'Mma Kick.fbx', idle: 'Happy Idle.fbx' };
+        const CLIP_FILES = {
+          walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', idle: 'Happy Idle.fbx',
+          // multiple punch + kick variations, picked at random per attack
+          punch: 'Hook Punch.fbx', punch2: 'Mutant Swiping.fbx',
+          kick: 'Mma Kick.fbx', kick2: 'Inside Crescent Kick.fbx', kick3: 'Roundhouse Kick.fbx', kick4: 'Mma Kick (1).fbx'
+        };
         loader.load('models/character/Dwarf Idle.fbx', fbx => {
           const bbox = new THREE.Box3().setFromObject(fbx);
           const size = bbox.getSize(new THREE.Vector3());
@@ -1815,7 +1820,10 @@
       });
 
       // click the scene to (re)grab the mouse
-      canvas.addEventListener('click', () => { if (paused || inMainMenu || menuCameraTransitionActive()) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { if (!delayedPointerLockTimer) requestGamePointerLock({ showMenuWhilePending: false, resumeImmediately: true, keepPlayingOnFailure: true }); } else { attack(); } });
+      canvas.addEventListener('click', () => { if (paused || inMainMenu || menuCameraTransitionActive()) return; startMusic(); if (mode === 'god') { placeAtCursor(); return; } if (!locked) { if (!delayedPointerLockTimer) requestGamePointerLock({ showMenuWhilePending: false, resumeImmediately: true, keepPlayingOnFailure: true }); } else { attack('kick'); } });
+      // right mouse button -> punch (left click above -> kick)
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+      canvas.addEventListener('mousedown', e => { if (e.button === 2 && locked && !paused && !inMainMenu) { e.preventDefault(); startMusic(); attack('punch'); } });
 
       document.addEventListener('pointerlockchange', () => {
         const wasLocked = locked;
@@ -2340,7 +2348,9 @@
          ============================================================ */
       const enemies = [];
       let playerHP = 100, kills = 0, swingT = 0, swingDur = 0.7, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0, underAttack = false;
-      let attackAnim = 'punch';
+      let attackAnim = 'punch', attackKind = 'punch';
+      const PUNCH_CLIPS = ['punch', 'punch2'];
+      const KICK_CLIPS = ['kick', 'kick2', 'kick3', 'kick4'];
       // ---- FPS camera offset (tuned) + hidden debug panel (toggle via Settings) ----
       let _acX = 0, _acY = 1.9, _acZ = -0.3, _acP = 0;
       let _fpsTuneVisible = false;
@@ -3117,9 +3127,13 @@
           else { const g2 = Math.sin(c.t * 5) * 0.5; for (let l = 0; l < c.legs.length; l++) c.legs[l].rotation.x = (l % 2 ? g2 : -g2); }
         }
       }
-      function attack() {
+      function attack(kind) {
         if (mode !== 'fps' || !locked) return;
-        attackAnim = (attackAnim === 'punch') ? 'kick' : 'punch';
+        if (swingT > 0) return;   // ignore new attack mid-swing
+        attackKind = (kind === 'kick') ? 'kick' : 'punch';
+        // pick a random clip variation, preferring ones that finished loading
+        const pool = (attackKind === 'kick' ? KICK_CLIPS : PUNCH_CLIPS).filter(k => playerActions[k]);
+        attackAnim = pool.length ? pool[(Math.random() * pool.length) | 0] : attackKind;
         const _atkAction = playerActions[attackAnim];
         swingDur = swingT = _atkAction ? _atkAction.getClip().duration : 0.7;
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
@@ -3506,7 +3520,7 @@
           else if (!onGround && playerActions.jump) act = 'jump';
           else if (hsp > 8.5 && playerActions.run) act = 'run';
           else if (hsp > 0.5 && playerActions.walk) act = 'walk';
-          setPlayerAction(act, (act === 'punch' || act === 'kick') ? 0.05 : 0.18);
+          setPlayerAction(act, swingT > 0 ? 0.05 : 0.18);
           playerMixer.update(swingT > 0 ? dt * 2 : dt);
         }
         // FPS first-person: collapse torso/head, inflate shoulders back so only arms+legs show.
@@ -3533,7 +3547,7 @@
         } else {
           const k = Math.sin(Math.max(0, swingT) / swingDur * Math.PI);
           swingT -= dt * 2;
-          if (attackAnim === 'punch') {
+          if (attackKind === 'punch') {
             vmR.rotation.x = -0.5 - 2.0 * k; vmR.rotation.z = 0.15 * k;
             vmL.rotation.x = -0.5 + 0.4 * k; vmL.rotation.z = 0;
           } else {
