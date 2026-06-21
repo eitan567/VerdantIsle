@@ -2681,7 +2681,7 @@
     if (!_parrotGltf) {
       if (_parrotLoading || !THREE.GLTFLoader) return;
       _parrotLoading = true;
-      new THREE.GLTFLoader().load('models/Flying_Parrot_Animated.glb', gltf => {
+      new THREE.GLTFLoader().load('models/animals/Flying_Parrot_Animated.glb', gltf => {
         gltf.scene.traverse(o => {
           if (!o.isMesh) return;
           o.castShadow = true;
@@ -2902,7 +2902,7 @@
     const cached = _fbxCache[cfg.file];
     if (cached) { _spawnGroundInstances(cfg, n, cached); return; }
     if (!THREE.FBXLoader) return;
-    new THREE.FBXLoader().load('models/' + cfg.file, fbx => {
+    new THREE.FBXLoader().load('models/animals/' + cfg.file, fbx => {
       const clips = fbx.animations || [];
       fbx.traverse(o => {
         if (!o.isMesh) return;
@@ -3349,7 +3349,7 @@
     };
     if (_parrotGltf) { build(_parrotGltf); return; }
     _menuParrotReq = true;
-    new THREE.GLTFLoader().load('models/Flying_Parrot_Animated.glb', gltf => {
+    new THREE.GLTFLoader().load('models/animals/Flying_Parrot_Animated.glb', gltf => {
       gltf.scene.traverse(o => { if (o.isMesh && o.material) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach(m => { m.roughness = Math.max(0.55, m.roughness || 0.55); m.needsUpdate = true; }); } });
       _parrotGltf = gltf; _menuParrotReq = false; if (inMainMenu) build(gltf);
     }, undefined, err => { _menuParrotReq = false; console.warn('Could not load menu parrot', err); });
