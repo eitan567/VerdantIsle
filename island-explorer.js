@@ -2343,6 +2343,29 @@
   });
   addEventListener('wheel', e => { if (mode === 'god') godDist = Math.max(24, Math.min(280, godDist + e.deltaY * 0.06)); }, { passive: true });
   addEventListener('mousemove', e => { _ndc.x = (e.clientX / innerWidth) * 2 - 1; _ndc.y = -(e.clientY / innerHeight) * 2 + 1; });
+  /* ---- build mode mouse control: right-drag = orbit, middle-drag = pan the focus ----
+     (existing arrow/WASD pan, Q/E rotate and wheel zoom all keep working) ---- */
+  let _godOrbit = false, _godPan = false;
+  addEventListener('mousedown', e => {
+    if (mode !== 'god') return;
+    if (e.button === 2) { _godOrbit = true; e.preventDefault(); }       // right = orbit
+    else if (e.button === 1) { _godPan = true; e.preventDefault(); }    // middle = pan focus
+  });
+  addEventListener('mouseup', e => { if (e.button === 2) _godOrbit = false; if (e.button === 1) _godPan = false; });
+  addEventListener('mousemove', e => {
+    if (mode !== 'god') return;
+    if (_godOrbit) {
+      godYaw -= e.movementX * 0.005;
+      godPitch = Math.max(0.25, Math.min(1.45, godPitch - e.movementY * 0.005));
+    } else if (_godPan) {
+      const fwdX = -Math.sin(godYaw), fwdZ = -Math.cos(godYaw), rgtX = Math.cos(godYaw), rgtZ = -Math.sin(godYaw);
+      const panSp = godDist * 0.0016;   // scale with zoom so it feels consistent
+      godTarget.x += (-rgtX * e.movementX + fwdX * e.movementY) * panSp;
+      godTarget.z += (-rgtZ * e.movementX + fwdZ * e.movementY) * panSp;
+    }
+  });
+  addEventListener('contextmenu', e => { if (mode === 'god') e.preventDefault(); });
+  addEventListener('auxclick', e => { if (mode === 'god' && e.button === 1) e.preventDefault(); }); // stop middle-click autoscroll
   document.querySelectorAll('#builderbar button[data-t]').forEach(b => b.addEventListener('click', () => selectTool(b.dataset.t)));
   document.querySelectorAll('#builderbar button[data-act]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.act; if (a === 'save') saveBuild(); else if (a === 'load') loadBuild(); else if (a === 'clear') clearBuild(); }));
   rebuildTreebar();
