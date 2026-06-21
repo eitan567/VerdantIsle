@@ -2162,6 +2162,85 @@
     if (treeKindIdx >= TREE_KINDS.length) treeKindIdx = 0;
     rebuildGhost(); updateTreebar();
   }
+  /* ---- Pirate kit objects (GLB) for the builder ---- */
+  const PIRATE_DIR = 'models/Pirate%20kit-glb/';
+  const _pirateCache = {};   // file -> loaded template scene
+  const PIRATE_KINDS = [
+    { cat: 'Props', file: 'Barrel.glb', label: 'Barrel', size: 1.4 },
+    { cat: 'Props', file: 'Bucket.glb', label: 'Bucket', size: 0.8 },
+    { cat: 'Props', file: 'Anchor.glb', label: 'Anchor', size: 2.2 },
+    { cat: 'Props', file: 'Cannon.glb', label: 'Cannon', size: 2.2 },
+    { cat: 'Props', file: 'Post.glb', label: 'Post', size: 2.4 },
+    { cat: 'Props', file: 'Lute.glb', label: 'Lute', size: 1.2 },
+    { cat: 'Props', file: 'Paper.glb', label: 'Paper', size: 0.6 },
+    { cat: 'Props', file: 'Prop Bottle.glb', label: 'Bottle', size: 0.7 },
+    { cat: 'Props', file: 'Wood.glb', label: 'Wood', size: 1.2 },
+    { cat: 'Props', file: 'Bomb.glb', label: 'Bomb', size: 0.9 },
+    { cat: 'Treasure', file: 'Chest Closed.glb', label: 'Chest', size: 1.4 },
+    { cat: 'Treasure', file: 'Chest Gold.glb', label: 'Gold Chest', size: 1.4 },
+    { cat: 'Treasure', file: 'Coins.glb', label: 'Coins', size: 0.9 },
+    { cat: 'Treasure', file: 'Gold Bag.glb', label: 'Gold Bag', size: 1.2 },
+    { cat: 'Treasure', file: 'Gold ore.glb', label: 'Gold Ore', size: 1.0 },
+    { cat: 'Treasure', file: 'Gem Blue.glb', label: 'Gem Blue', size: 0.7 },
+    { cat: 'Treasure', file: 'Gem Green.glb', label: 'Gem Green', size: 0.7 },
+    { cat: 'Treasure', file: 'Gem Pink.glb', label: 'Gem Pink', size: 0.7 },
+    { cat: 'Spooky', file: 'Skull.glb', label: 'Skull', size: 0.9 },
+    { cat: 'Spooky', file: 'Large Bone.glb', label: 'Bone', size: 1.6 },
+    { cat: 'Spooky', file: 'Skeleton.glb', label: 'Skeleton', size: 3.2 },
+    { cat: 'Spooky', file: 'Red X.glb', label: 'Red X', size: 1.2 },
+    { cat: 'Nature', file: 'Palm Tree.glb', label: 'Palm', size: 7 },
+    { cat: 'Nature', file: 'Palm Tree-A6cKJYFsIb.glb', label: 'Palm 2', size: 7 },
+    { cat: 'Nature', file: 'Rock.glb', label: 'Rock', size: 1.6 },
+    { cat: 'Nature', file: 'Rocks.glb', label: 'Rocks', size: 2.6 },
+    { cat: 'Structures', file: 'Dock.glb', label: 'Dock', size: 4.5 },
+    { cat: 'Structures', file: 'Dock Broken.glb', label: 'Dock Broken', size: 4.5 },
+    { cat: 'Structures', file: 'Sawmill.glb', label: 'Sawmill', size: 4.5 },
+    { cat: 'Structures', file: 'House.glb', label: 'Hut', size: 5 },
+    { cat: 'Structures', file: 'Ship.glb', label: 'Ship', size: 16 },
+    { cat: 'Structures', file: 'Small Ship.glb', label: 'Small Ship', size: 9 },
+    { cat: 'Weapons', file: 'Sword.glb', label: 'Sword', size: 1.6 },
+    { cat: 'Weapons', file: 'Cutlass.glb', label: 'Cutlass', size: 1.6 },
+    { cat: 'Weapons', file: 'Dagger.glb', label: 'Dagger', size: 1.0 },
+    { cat: 'Weapons', file: 'Axe.glb', label: 'Axe', size: 1.5 },
+    { cat: 'Weapons', file: 'Pistol.glb', label: 'Pistol', size: 1.1 },
+    { cat: 'Weapons', file: 'Rifle.glb', label: 'Rifle', size: 1.8 },
+    { cat: 'Weapons', file: 'Shotgun.glb', label: 'Shotgun', size: 1.8 },
+    { cat: 'Sea life', file: 'Shark.glb', label: 'Shark', size: 4 },
+    { cat: 'Sea life', file: 'Bird.glb', label: 'Bird', size: 0.8 }
+  ];
+  let pirateKindIdx = 0;
+  function buildPirateInto(g, file, size) {
+    function place(tmpl) {
+      const m = tmpl.clone(true);
+      let box = new THREE.Box3().setFromObject(m);
+      const sz = box.getSize(new THREE.Vector3());
+      const s = (size || 2) / (Math.max(sz.x, sz.y, sz.z) || 1);
+      m.scale.setScalar(s);
+      box = new THREE.Box3().setFromObject(m);
+      m.position.y = -box.min.y;   // sit on the ground
+      m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false; } });
+      g.add(m);
+    }
+    if (_pirateCache[file]) { place(_pirateCache[file]); return; }
+    if (!THREE.GLTFLoader) return;
+    new THREE.GLTFLoader().load(PIRATE_DIR + encodeURIComponent(file), gltf => {
+      _pirateCache[file] = gltf.scene; place(gltf.scene);
+    }, undefined, err => console.warn('Could not load pirate model ' + file, err));
+  }
+  function cyclePirate(d) { pirateKindIdx = (pirateKindIdx + d + PIRATE_KINDS.length) % PIRATE_KINDS.length; updatePiratebar(); }
+  function updatePiratebar() { document.querySelectorAll('#piratebar button').forEach(b => b.classList.toggle('sel', +b.dataset.i === pirateKindIdx)); }
+  function rebuildPiratebar() {
+    const pb = document.getElementById('piratebar'); if (!pb) return;
+    pb.innerHTML = '';
+    let lastCat = null, grid = null;
+    PIRATE_KINDS.forEach((k, i) => {
+      if (k.cat !== lastCat) { const h = document.createElement('div'); h.className = 'pcat'; h.textContent = k.cat; pb.appendChild(h); grid = document.createElement('div'); grid.className = 'pgrid'; pb.appendChild(grid); lastCat = k.cat; }
+      const b = document.createElement('button'); b.textContent = k.label; b.dataset.i = i; b.title = k.label;
+      b.addEventListener('click', () => { pirateKindIdx = i; updatePiratebar(); });
+      grid.appendChild(b);
+    });
+    updatePiratebar();
+  }
   function buildAt(type, x, z, kind) {
     const h = heightAt(x, z);
     if (type === 'crystal') { // standalone, world-positioned, and collectible in FPS
@@ -2198,6 +2277,12 @@
       g.userData.collider = collider;
     }
     else if (type === 'bush') { const s = 0.8 + Math.random() * 0.6; bm(bG.ball, bM.bush, g, 0, 0.7 * s, 0, s * 0.55, s * 0.5, s * 0.55); bm(bG.ball, bM.bush, g, 0.5 * s, 0.6 * s, 0.2 * s, s * 0.38, s * 0.36, s * 0.38); bm(bG.ball, bM.bush, g, -0.45 * s, 0.62 * s, -0.2 * s, s * 0.34, s * 0.32, s * 0.34); }
+    else if (type === 'pirate') {
+      const file = kind || PIRATE_KINDS[pirateKindIdx].file;
+      const def = PIRATE_KINDS.find(k => k.file === file) || { size: 2 };
+      buildPirateInto(g, file, def.size);
+      g.userData.kind = file;
+    }
     g.userData.type = type; placed.push(g); return g;
   }
   function removeFromArray(arr, item) { const i = arr.indexOf(item); if (i >= 0) arr.splice(i, 1); }
@@ -2221,6 +2306,7 @@
   function selectTool(t) {
     tool = t; document.querySelectorAll('#builderbar button[data-t]').forEach(b => b.classList.toggle('sel', b.dataset.t === t));
     const tb = document.getElementById('treebar'); if (tb) tb.classList.toggle('hidden', !(t === 'tree' && mode === 'god'));
+    const pb = document.getElementById('piratebar'); if (pb) pb.classList.toggle('hidden', !(t === 'pirate' && mode === 'god'));
     if (t !== 'tree' && ghost) ghost.visible = false;
   }
   function clearBuild() { while (placed.length) removePlacedObject(placed.pop()); }
@@ -2266,6 +2352,7 @@
     if (typeof vm !== 'undefined' && vm) vm.visible = (m === 'fps');
     cursor.visible = false;
     const tb = document.getElementById('treebar'); if (tb) tb.classList.toggle('hidden', !(m === 'god' && tool === 'tree'));
+    const pb = document.getElementById('piratebar'); if (pb) pb.classList.toggle('hidden', !(m === 'god' && tool === 'pirate'));
     if (ghost && m !== 'god') ghost.visible = false;
     if (m === 'god') {
       if (!options.preserveGodTarget) godTarget.set(player.position.x, 0, player.position.z);
@@ -2337,8 +2424,9 @@
       return;
     }
     if (mode === 'god' && !paused && !anyOverlayOpen()) {
-      const map = { Digit1: 'tree', Digit2: 'rock', Digit3: 'bush', Digit4: 'house', Digit5: 'crystal', Digit6: 'key', Digit7: 'chest', Digit8: 'erase' }; if (map[e.code]) selectTool(map[e.code]);
+      const map = { Digit1: 'tree', Digit2: 'rock', Digit3: 'bush', Digit4: 'house', Digit5: 'crystal', Digit6: 'key', Digit7: 'chest', Digit8: 'pirate', Digit9: 'erase' }; if (map[e.code]) selectTool(map[e.code]);
       if (tool === 'tree') { if (e.code === 'Comma') cycleTree(-1); if (e.code === 'Period') cycleTree(1); }
+      if (tool === 'pirate') { if (e.code === 'Comma') cyclePirate(-1); if (e.code === 'Period') cyclePirate(1); }
     }
   });
   addEventListener('wheel', e => { if (mode === 'god') godDist = Math.max(24, Math.min(280, godDist + e.deltaY * 0.06)); }, { passive: true });
@@ -2369,6 +2457,7 @@
   document.querySelectorAll('#builderbar button[data-t]').forEach(b => b.addEventListener('click', () => selectTool(b.dataset.t)));
   document.querySelectorAll('#builderbar button[data-act]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.act; if (a === 'save') saveBuild(); else if (a === 'load') loadBuild(); else if (a === 'clear') clearBuild(); }));
   rebuildTreebar();
+  rebuildPiratebar();
   // scatter ONLY the new trees (small / medium / large) across the world
   (function () {
     const NK = ['tree_s', 'tree_m', 'tree_l']; let made = 0;
