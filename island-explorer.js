@@ -2319,7 +2319,7 @@
          ENEMIES + COMBAT  (roaming slimes, click to attack with the torch)
          ============================================================ */
       const enemies = [];
-      let playerHP = 100, kills = 0, swingT = 0, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0;
+      let playerHP = 100, kills = 0, swingT = 0, swingDur = 0.7, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0, underAttack = false;
       let attackAnim = 'punch';
       const _slimeG = new THREE.IcosahedronGeometry(0.62, 1);
       const _slimeMats = [new THREE.MeshStandardMaterial({ color: 0x7ac74f, roughness: 0.55, flatShading: true }),
@@ -2571,6 +2571,7 @@
           vel.set(0, 0, 0);
           controlledParrot = null;
         } else {
+          if (underAttack) return;
           if (!parrots.length) return;
           let best = null, bestD2 = Infinity;
           for (const p of parrots) {
@@ -3052,7 +3053,8 @@
       function attack() {
         if (mode !== 'fps' || !locked) return;
         attackAnim = (attackAnim === 'punch') ? 'kick' : 'punch';
-        swingT = 0.28;
+        const _atkAction = playerActions[attackAnim];
+        swingDur = swingT = _atkAction ? _atkAction.getClip().duration : 0.7;
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], dx = e.position.x - player.position.x, dz = e.position.z - player.position.z, d = Math.hypot(dx, dz) || 1;
@@ -3064,9 +3066,11 @@
       }
       function sfxHit() { if (!_actx) return; const t0 = _actx.currentTime, o = _actx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(180, t0); o.frequency.exponentialRampToValueAtTime(60, t0 + 0.12); const g = _actx.createGain(); o.connect(g); g.connect(_sfxGain); g.gain.setValueAtTime(0.18, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14); o.start(t0); o.stop(t0 + 0.16); }
       function updateEnemies(dt, t) {
+        underAttack = false;
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], u = e.userData; u.t += dt; u.cd -= dt; u.dir -= dt;
           const dx = player.position.x - e.position.x, dz = player.position.z - e.position.z, dist = Math.hypot(dx, dz);
+          if (mode === 'fps' && !parrotMode && dist < 2.5) underAttack = true;
           if (mode === 'fps' && !parrotMode && dist < 13) { u.ang = Math.atan2(dx, dz); } else if (u.dir <= 0) { u.ang += (Math.random() - 0.5) * 2.5; u.dir = 2 + Math.random() * 3; }
           const sp = 2.4 * dt; const nx = e.position.x + Math.sin(u.ang) * sp, nz = e.position.z + Math.cos(u.ang) * sp;
           if (heightAt(nx, nz) > WATER) { e.position.x = nx; e.position.z = nz; } else { u.ang += Math.PI; }
@@ -3341,7 +3345,7 @@
           const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
           const speed = (sprint ? 13 : 7);
           let ix = 0, iz = 0;
-          if (mode === 'fps') { if (keys['KeyW']) iz -= 1; if (keys['KeyS']) iz += 1; if (keys['KeyA']) ix -= 1; if (keys['KeyD']) ix += 1; }
+          if (mode === 'fps' && (view !== 'third' || swingT <= 0)) { if (keys['KeyW']) iz -= 1; if (keys['KeyS']) iz += 1; if (keys['KeyA']) ix -= 1; if (keys['KeyD']) ix += 1; }
           const len = Math.hypot(ix, iz) || 1; ix /= len; iz /= len;
           const sin = Math.sin(yaw), cos = Math.cos(yaw);
           const wishX = (ix * cos + iz * sin), wishZ = (-ix * sin + iz * cos);
@@ -3391,6 +3395,10 @@
             const tp = Math.max(-0.6, Math.min(1.0, pitch)), dist = 6.4, ty = 2.6;
             camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
             camera.rotation.set(tp, 0, 0);
+          } else if (swingT > 0) {
+            // attack cam: chest level, slightly forward, looking down to see arms/legs
+            camera.position.set(0, 2.1, -0.4);
+            camera.rotation.set(pitch + 0.3, 0, 0);
           } else {
             camera.position.set(Math.cos(bob * 0.5) * 0.04 * moveAmt, EYE + Math.sin(bob) * 0.07 * moveAmt, 0);
             camera.rotation.set(pitch, 0, 0);
@@ -3423,18 +3431,32 @@
           else if (!onGround && playerActions.jump) act = 'jump';
           else if (hsp > 8.5 && playerActions.run) act = 'run';
           else if (hsp > 0.5 && playerActions.walk) act = 'walk';
-          setPlayerAction(act);
-          playerMixer.update(dt);
+          setPlayerAction(act, (act === 'punch' || act === 'kick') ? 0.05 : 0.18);
+          playerMixer.update(swingT > 0 ? dt * 2 : dt);
         }
-        // body visible in third-person only; vm hidden (torch removed)
-        body.visible = third; vm.visible = false;
+        // body visible in third-person; during FPS attack briefly show actual model
+        body.visible = third || (!parrotMode && !third && swingT > 0);
+        vm.visible = false;
 
-        // viewmodel arm sway/bob
-        vmL.rotation.x = -0.5 + Math.sin(bob) * 0.18 * moveAmt;
-        vmR.rotation.x = -0.5 + Math.sin(bob + Math.PI) * 0.18 * moveAmt;
+        // viewmodel bob and attack animation
         vm.position.y = Math.sin(bob * 2) * 0.02 * moveAmt;
-        // torch swing on attack
-        if (swingT > 0) { swingT -= dt; const k = Math.sin(Math.max(0, swingT) / 0.28 * Math.PI); vm.rotation.z = -k * 0.5; vm.rotation.x = k * 0.45; } else { vm.rotation.z = 0; vm.rotation.x = 0; }
+        if (swingT <= 0) {
+          vmL.rotation.x = -0.5 + Math.sin(bob) * 0.18 * moveAmt;
+          vmR.rotation.x = -0.5 + Math.sin(bob + Math.PI) * 0.18 * moveAmt;
+          vmL.rotation.z = vmR.rotation.z = 0;
+          vm.rotation.z = vm.rotation.x = 0;
+        } else {
+          const k = Math.sin(Math.max(0, swingT) / swingDur * Math.PI);
+          swingT -= dt * 2;
+          if (attackAnim === 'punch') {
+            vmR.rotation.x = -0.5 - 2.0 * k; vmR.rotation.z = 0.15 * k;
+            vmL.rotation.x = -0.5 + 0.4 * k; vmL.rotation.z = 0;
+          } else {
+            vmL.rotation.x = -0.5 - 2.0 * k; vmL.rotation.z = -0.15 * k;
+            vmR.rotation.x = -0.5 + 0.4 * k; vmR.rotation.z = 0;
+          }
+          vm.rotation.z = vm.rotation.x = 0;
+        }
         // torch flame flicker
         flame.scale.set(0.85 + Math.sin(t * 22) * 0.12, 0.8 + Math.sin(t * 17 + 1) * 0.18 + Math.random() * 0.08, 0.85 + Math.cos(t * 20) * 0.12);
         tlight.intensity = 1.5 + Math.sin(t * 26) * 0.4 + Math.random() * 0.15;
