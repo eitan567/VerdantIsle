@@ -838,7 +838,7 @@
       const tlight = new THREE.PointLight(0xff9a3c, 1.8, 16); tlight.position.y = 0.65;
       torch.add(handle, wrap, flame, tlight);
       torch.position.set(0, -1.05, 0.05); torch.rotation.x = 0.25;
-      vmL.add(torch);
+      vmL.add(torch); torch.visible = false;
 
       /* ============================================================
          PLAYER MODEL — an animated Mixamo "dwarf" replaces the simple box
@@ -859,7 +859,7 @@
       (function loadPlayerModel() {
         if (!THREE.FBXLoader) return;
         const loader = new THREE.FBXLoader();
-        const CLIP_FILES = { walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', attack: 'Mma Kick.fbx' };
+        const CLIP_FILES = { walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', punch: 'Hook Punch.fbx', kick: 'Mma Kick.fbx', idle: 'Happy Idle.fbx' };
         loader.load('models/character/Dwarf Idle.fbx', fbx => {
           const bbox = new THREE.Box3().setFromObject(fbx);
           const size = bbox.getSize(new THREE.Vector3());
@@ -881,7 +881,7 @@
           Object.keys(CLIP_FILES).forEach(name => {
             loader.load('models/character/' + CLIP_FILES[name], cf => {
               const clip = cf.animations && cf.animations[0];
-              if (clip) { clip.name = name; playerActions[name] = playerMixer.clipAction(stripRootMotion(clip)); }
+              if (clip) { clip.name = name; if (name === 'idle' && playerActions.idle) { playerActions.idle.stop(); } playerActions[name] = playerMixer.clipAction(stripRootMotion(clip)); if (name === 'idle') { playerCur = ''; setPlayerAction('idle', 0.5); } }
             }, undefined, e => console.warn('Could not load clip ' + name, e));
           });
         }, undefined, e => console.warn('Could not load player model', e));
@@ -1307,6 +1307,7 @@
           if (e.code === 'KeyI') toggleInv();
           if (e.code === 'KeyC') toggleChat();
           if (e.code === 'KeyO') toggleSettings();
+          if (e.code === 'KeyF' && mode === 'fps') toggleParrotMode();
         }
       });
 
@@ -2299,6 +2300,9 @@
       /* movement state */
       const vel = new THREE.Vector3();
       let vy = 0, onGround = false, bob = 0, stepAcc = 0, inWaterPrev = false, _waveAcc = 0, air = 1, _qAcc = 0;
+      let parrotMode = false, controlledParrot = null;
+      const parrotSaved = { px: 0, py: 0, pz: 0, yaw: 0, pitch: 0, vy: 0 };
+      const parrotVel = new THREE.Vector3();
       function respawn() { player.position.set(0, heightAt(0, 0) + EYE, 30); vel.set(0, 0, 0); vy = 0; air = 1; }
       // nearest distance to open water (for spatial wave volume)
       function waterProximity(px, pz) {
@@ -2316,6 +2320,7 @@
          ============================================================ */
       const enemies = [];
       let playerHP = 100, kills = 0, swingT = 0, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0;
+      let attackAnim = 'punch';
       const _slimeG = new THREE.IcosahedronGeometry(0.62, 1);
       const _slimeMats = [new THREE.MeshStandardMaterial({ color: 0x7ac74f, roughness: 0.55, flatShading: true }),
       new THREE.MeshStandardMaterial({ color: 0xb05fd6, roughness: 0.55, flatShading: true }),
@@ -2558,6 +2563,29 @@
           parrots.push(parrot);
         }
       };
+      function toggleParrotMode() {
+        if (parrotMode) {
+          parrotMode = false;
+          player.position.set(parrotSaved.px, parrotSaved.py, parrotSaved.pz);
+          yaw = parrotSaved.yaw; pitch = parrotSaved.pitch; vy = parrotSaved.vy;
+          vel.set(0, 0, 0);
+          controlledParrot = null;
+        } else {
+          if (!parrots.length) return;
+          let best = null, bestD2 = Infinity;
+          for (const p of parrots) {
+            const dx = p.g.position.x - player.position.x, dy = p.g.position.y - player.position.y, dz = p.g.position.z - player.position.z;
+            const d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < bestD2) { bestD2 = d2; best = p; }
+          }
+          if (!best) return;
+          parrotSaved.px = player.position.x; parrotSaved.py = player.position.y; parrotSaved.pz = player.position.z;
+          parrotSaved.yaw = yaw; parrotSaved.pitch = pitch; parrotSaved.vy = vy;
+          parrotMode = true; controlledParrot = best;
+          parrotVel.set(0, 0, 0); vel.set(0, 0, 0); vy = 0;
+          player.position.copy(best.g.position);
+        }
+      }
       function fbxClip(clips, patterns) {
         for (let i = 0; i < patterns.length; i++) {
           const rx = patterns[i];
@@ -2907,6 +2935,7 @@
         }
         for (let i = 0; i < parrots.length; i++) {
           const p = parrots[i];
+          if (p === controlledParrot) { p.g.visible = true; updateAnimalMixerBudgeted(p, dt, 0, 1); continue; }
           p.ang += p.sp * dt;
           const x = p.cx + Math.cos(p.ang) * p.r + Math.sin(t * 0.17 + p.phase) * p.driftX;
           const z = p.cz + Math.sin(p.ang) * p.r + Math.cos(t * 0.13 + p.phase) * p.driftZ;
@@ -3022,6 +3051,7 @@
       }
       function attack() {
         if (mode !== 'fps' || !locked) return;
+        attackAnim = (attackAnim === 'punch') ? 'kick' : 'punch';
         swingT = 0.28;
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
         for (let i = enemies.length - 1; i >= 0; i--) {
@@ -3276,43 +3306,78 @@
         // orientation
         player.rotation.y = yaw;
 
-        // input -> horizontal velocity (camera-relative on yaw plane)
-        const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-        const speed = (sprint ? 13 : 7);
-        let ix = 0, iz = 0;
-        if (mode === 'fps') { if (keys['KeyW']) iz -= 1; if (keys['KeyS']) iz += 1; if (keys['KeyA']) ix -= 1; if (keys['KeyD']) ix += 1; }
-        const len = Math.hypot(ix, iz) || 1; ix /= len; iz /= len;
-        const sin = Math.sin(yaw), cos = Math.cos(yaw);
-        const wishX = (ix * cos + iz * sin), wishZ = (-ix * sin + iz * cos);
-        const moving = (ix || iz) && onGround;
-        vel.x += (wishX * speed - vel.x) * Math.min(1, dt * 12);
-        vel.z += (wishZ * speed - vel.z) * Math.min(1, dt * 12);
+        /* ---- Parrot possession mode (F key) — airplane flight model ---- */
+        if (parrotMode && controlledParrot) {
+          // Forward = camera look direction. Rx(pitch)*Ry(yaw) on local -Z gives Y=+sin(pitch)
+          const fwdX = -Math.sin(yaw) * Math.cos(pitch);
+          const fwdY = Math.sin(pitch);
+          const fwdZ = -Math.cos(yaw) * Math.cos(pitch);
+          // W = accelerate in look direction, S = brake, no separate up/down keys
+          const pSpd = (keys['ShiftLeft'] || keys['ShiftRight']) ? 28 : 16;
+          let targetSpeed = 0;
+          if (keys['KeyW']) targetSpeed = pSpd;
+          else if (keys['KeyS']) targetSpeed = -pSpd * 0.35;
+          parrotVel.x += (fwdX * targetSpeed - parrotVel.x) * Math.min(1, dt * 3.5);
+          parrotVel.y += (fwdY * targetSpeed - parrotVel.y) * Math.min(1, dt * 3.0);
+          parrotVel.z += (fwdZ * targetSpeed - parrotVel.z) * Math.min(1, dt * 3.5);
+          const plim = WORLD * 0.5 - 4;
+          controlledParrot.g.position.x = Math.max(-plim, Math.min(plim, controlledParrot.g.position.x + parrotVel.x * dt));
+          controlledParrot.g.position.z = Math.max(-plim, Math.min(plim, controlledParrot.g.position.z + parrotVel.z * dt));
+          const pmh = heightAt(controlledParrot.g.position.x, controlledParrot.g.position.z) + 2;
+          controlledParrot.g.position.y = Math.max(pmh, controlledParrot.g.position.y + parrotVel.y * dt);
+          if (controlledParrot.g.position.y <= pmh) parrotVel.y = 0;
+          // Parrot body faces exactly where camera looks (Euler XYZ: θx=pitch, θy=π+yaw)
+          controlledParrot.g.rotation.set(pitch, Math.PI + yaw, Math.sin(t * 0.9 + controlledParrot.phase) * 0.05);
+          player.position.copy(controlledParrot.g.position);
+          // Camera behind parrot, stays fixed relative to parrot facing
+          const pcDist = 3;
+          camera.position.set(0, 1.2 - pcDist * Math.sin(pitch), pcDist * Math.cos(pitch));
+          camera.rotation.set(pitch, 0, 0);
+          vy = 0; vel.set(0, 0, 0);
+        }
 
-        player.position.x += vel.x * dt;
-        player.position.z += vel.z * dt;
-        // bounds
-        const lim = WORLD * 0.5 - 4;
-        player.position.x = Math.max(-lim, Math.min(lim, player.position.x));
-        player.position.z = Math.max(-lim, Math.min(lim, player.position.z));
-        if (mode === 'fps') resolvePlayerCollision();   // block rocks, house walls, etc. (door gap stays open)
+        if (!parrotMode) {
+          // input -> horizontal velocity (camera-relative on yaw plane)
+          const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
+          const speed = (sprint ? 13 : 7);
+          let ix = 0, iz = 0;
+          if (mode === 'fps') { if (keys['KeyW']) iz -= 1; if (keys['KeyS']) iz += 1; if (keys['KeyA']) ix -= 1; if (keys['KeyD']) ix += 1; }
+          const len = Math.hypot(ix, iz) || 1; ix /= len; iz /= len;
+          const sin = Math.sin(yaw), cos = Math.cos(yaw);
+          const wishX = (ix * cos + iz * sin), wishZ = (-ix * sin + iz * cos);
+          const moving = (ix || iz) && onGround;
+          vel.x += (wishX * speed - vel.x) * Math.min(1, dt * 12);
+          vel.z += (wishZ * speed - vel.z) * Math.min(1, dt * 12);
+          player.position.x += vel.x * dt;
+          player.position.z += vel.z * dt;
+          // bounds
+          const lim = WORLD * 0.5 - 4;
+          player.position.x = Math.max(-lim, Math.min(lim, player.position.x));
+          player.position.z = Math.max(-lim, Math.min(lim, player.position.z));
+          if (mode === 'fps') resolvePlayerCollision();   // block rocks, house walls, etc. (door gap stays open)
+        }
 
-        // gravity + ground (+ swimming when you wade out into deep water)
-        vy -= 24 * dt; player.position.y += vy * dt;
+        // terrain height at current x,z (used for gravity and water checks)
         const groundH = heightAt(player.position.x, player.position.z);
-        const _hf = houseFloorAt(player.position.x, player.position.z);   // stand on the interior floor when inside a house
-        const feet = _hf !== null ? _hf : groundH;
-        const submerged = mode === 'fps' && (player.position.y + EYE) < WATER;
-        if (submerged) { vy = Math.max(vy * 0.9, -2.6); if (keys['Space']) vy += 22 * dt; } // buoyant drag + swim up
-        if (player.position.y <= feet) {
-          player.position.y = feet; vy = 0; onGround = true;
-        } else if (vy <= 0 && !submerged && (player.position.y - feet) < 1.0 && Math.hypot(vel.x, vel.z) > 0.3) {
-          // Walking down a slope: the ground drops a little each frame. Stick to it
-          // instead of briefly launching into the air (which caused the downhill
-          // "slide + jitter"). Ascending was already fine because the ground rises
-          // up to meet the player.
-          player.position.y = feet; vy = 0; onGround = true;
-        } else onGround = false;
-        if (mode === 'fps' && !submerged && keys['Space'] && onGround) { vy = 9.2; onGround = false; sfxJump(); }
+
+        if (!parrotMode) {
+          // gravity + ground (+ swimming when you wade out into deep water)
+          vy -= 24 * dt; player.position.y += vy * dt;
+          const _hf = houseFloorAt(player.position.x, player.position.z);   // stand on the interior floor when inside a house
+          const feet = _hf !== null ? _hf : groundH;
+          const submerged = mode === 'fps' && (player.position.y + EYE) < WATER;
+          if (submerged) { vy = Math.max(vy * 0.9, -2.6); if (keys['Space']) vy += 22 * dt; } // buoyant drag + swim up
+          if (player.position.y <= feet) {
+            player.position.y = feet; vy = 0; onGround = true;
+          } else if (vy <= 0 && !submerged && (player.position.y - feet) < 1.0 && Math.hypot(vel.x, vel.z) > 0.3) {
+            // Walking down a slope: the ground drops a little each frame. Stick to it
+            // instead of briefly launching into the air (which caused the downhill
+            // "slide + jitter"). Ascending was already fine because the ground rises
+            // up to meet the player.
+            player.position.y = feet; vy = 0; onGround = true;
+          } else onGround = false;
+          if (mode === 'fps' && !submerged && keys['Space'] && onGround) { vy = 9.2; onGround = false; sfxJump(); }
+        }
 
         // head bob + gait driven by ACTUAL horizontal speed -> always animates while moving (even when gliding to a stop)
         const hsp = Math.hypot(vel.x, vel.z);
@@ -3320,14 +3385,16 @@
         if (hsp > 0.4 && onGround) bob += dt * (7 + hsp * 1.1);
         // footstep SFX cadence
         if (hsp > 0.4 && onGround) { stepAcc += dt * (1.3 + hsp * 0.16); if (stepAcc >= 1) { stepAcc = 0; sfxStep(); } } else stepAcc = 0.75;
-        const third = mode === 'fps' && view === 'third';
-        if (third) {   // orbit camera behind/above the visible character
-          const tp = Math.max(-0.6, Math.min(1.0, pitch)), dist = 6.4, ty = 2.6;
-          camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
-          camera.rotation.set(tp, 0, 0);
-        } else {
-          camera.position.set(Math.cos(bob * 0.5) * 0.04 * moveAmt, EYE + Math.sin(bob) * 0.07 * moveAmt, 0);
-          camera.rotation.set(pitch, 0, 0);
+        const third = !parrotMode && mode === 'fps' && view === 'third';
+        if (!parrotMode) {
+          if (third) {   // orbit camera behind/above the visible character
+            const tp = Math.max(-0.6, Math.min(1.0, pitch)), dist = 6.4, ty = 2.6;
+            camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
+            camera.rotation.set(tp, 0, 0);
+          } else {
+            camera.position.set(Math.cos(bob * 0.5) * 0.04 * moveAmt, EYE + Math.sin(bob) * 0.07 * moveAmt, 0);
+            camera.rotation.set(pitch, 0, 0);
+          }
         }
 
         // visible body follows player, yawed, with walking gait
@@ -3349,18 +3416,18 @@
           // attack swing on the right arm (visible in third-person)
           if (swingT > 0) { const k = Math.sin(Math.min(1, swingT / 0.28) * Math.PI); armRj.sh.rotation.x = -1.9 * k; armRj.sh.rotation.z = -0.3 * k; armRj.elbow.rotation.x = -1.1 * k; } else { armRj.sh.rotation.z = 0; }
           head.visible = third;
-        } else if (playerMixer && third) {
+        } else if (playerMixer && !parrotMode) {
           // ---- animated dwarf: pick a clip from the movement state ----
           let act = 'idle';
-          if (swingT > 0 && playerActions.attack) act = 'attack';
+          if (swingT > 0 && playerActions[attackAnim]) act = attackAnim;
           else if (!onGround && playerActions.jump) act = 'jump';
           else if (hsp > 8.5 && playerActions.run) act = 'run';
           else if (hsp > 0.5 && playerActions.walk) act = 'walk';
           setPlayerAction(act);
           playerMixer.update(dt);
         }
-        // show the full character only in third-person; first-person shows just the hands
-        body.visible = third; vm.visible = !third;
+        // body visible in third-person only; vm hidden (torch removed)
+        body.visible = third; vm.visible = false;
 
         // viewmodel arm sway/bob
         vmL.rotation.x = -0.5 + Math.sin(bob) * 0.18 * moveAmt;
