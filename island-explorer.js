@@ -3940,7 +3940,7 @@
     const ids = ['sSat', 'sCon', 'sBri', 'sSun', 'sWar', 'sFil'];
     const S = {}; ids.forEach(k => S[k] = $(k));
     const cool = new THREE.Color(0xfff7ec), warm = new THREE.Color(0xffbe72);
-    const DEF = [115, 105, 100, 140, 50, 50];
+    const DEF = [190, 139, 99, 73, 75, 44];
     function apply() {
       const sat = +S.sSat.value, con = +S.sCon.value, bri = +S.sBri.value, sn = +S.sSun.value, wa = +S.sWar.value, fi = +S.sFil.value;
       canvas.style.filter = `saturate(${sat}%) contrast(${con}%) brightness(${bri}%)`;
