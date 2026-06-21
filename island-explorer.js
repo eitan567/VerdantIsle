@@ -386,9 +386,11 @@
   waterGeo.setAttribute('color', new THREE.Float32BufferAttribute(wcolArr, 3));
   waterGeo.setAttribute('aDepth', new THREE.Float32BufferAttribute(wdep, 1));
 
-  /* ---- separate inland LAKES: each its own water disc, sitting above sea level in its basin ---- */
-  const lakeMat = new THREE.MeshStandardMaterial({ color: 0x2f8fb0, transparent: true, opacity: 0.85, roughness: 0.22, metalness: 0.0, side: THREE.DoubleSide });
+  /* ---- separate inland LAKES: each its own water disc, sitting above sea level in its basin ----
+     They now share the ocean's water material (waterMat) so they get the same animated ripples,
+     depth gradient and shoreline foam — and feed per-vertex depth/colour attributes just like the sea. */
   const lakeMeshes = [];
+  const lakeBodies = [];   // {x, z, r, wy} — used to detect when the player is in a lake (swim/underwater)
   for (let i = 0; i < LAKES.length; i++) {
     const L = LAKES[i], rad = L.r * 0.8;
     // sample the bank all around the disc edge; the surface must sit just BELOW the lowest
@@ -396,9 +398,32 @@
     let minBank = 1e9;
     for (let a = 0; a < 12; a++) { const ang = a / 12 * 6.283, hh = heightAt(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad); if (hh < minBank) minBank = hh; }
     const wy = Math.max(WATER + 1.0, minBank - 0.3);   // surface just under the lowest bank
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(rad, 36), lakeMat);
-    disc.rotation.x = -Math.PI / 2; disc.position.set(L.x, wy, L.z); disc.renderOrder = 1;
+    const geo = new THREE.CircleGeometry(rad, 48);
+    geo.rotateX(-Math.PI / 2);   // lie flat, y up — local x,z are planar like the ocean plane
+    // per-vertex depth (drives foam) + colour gradient, sampled against this lake's surface height
+    const lp = geo.attributes.position, lN = lp.count;
+    const ldep = new Float32Array(lN), lcol = new Float32Array(lN * 3), lc = new THREE.Color();
+    for (let v = 0; v < lN; v++) {
+      const wx = L.x + lp.getX(v), wz = L.z + lp.getZ(v);
+      const depth = Math.max(0, wy - heightAt(wx, wz)); ldep[v] = depth;
+      const shallow = Math.min(1, Math.max(0, (2.4 - depth) / 2.4));
+      lc.copy(cDeepW).lerp(cShallowW, shallow * shallow);
+      lcol[v * 3] = lc.r; lcol[v * 3 + 1] = lc.g; lcol[v * 3 + 2] = lc.b;
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(lcol, 3));
+    geo.setAttribute('aDepth', new THREE.Float32BufferAttribute(ldep, 1));
+    const disc = new THREE.Mesh(geo, waterMat);   // same shader/material as the sea
+    disc.position.set(L.x, wy, L.z); disc.frustumCulled = false; disc.renderOrder = 1;
     scene.add(disc); lakeMeshes.push({ mesh: disc, wy });
+    lakeBodies.push({ x: L.x, z: L.z, r: rad, wy });
+  }
+  // effective water-surface height at a world position: a lake's surface when inside one, else sea level
+  function waterLevelAt(x, z) {
+    for (let i = 0; i < lakeBodies.length; i++) {
+      const L = lakeBodies[i], dx = x - L.x, dz = z - L.z;
+      if (dx * dx + dz * dz < L.r * L.r) return L.wy;
+    }
+    return WATER;
   }
 
   /* ============================================================
@@ -3678,7 +3703,7 @@
       vy -= 24 * dt; player.position.y += vy * dt;
       const _hf = houseFloorAt(player.position.x, player.position.z);   // stand on the interior floor when inside a house
       const feet = _hf !== null ? _hf : groundH;
-      const submerged = mode === 'fps' && (player.position.y + EYE) < WATER;
+      const submerged = mode === 'fps' && (player.position.y + EYE) < waterLevelAt(player.position.x, player.position.z);
       if (submerged) { vy = Math.max(vy * 0.9, -2.6); if (keys['Space']) vy += 22 * dt; } // buoyant drag + swim up
       if (player.position.y <= feet) {
         player.position.y = feet; vy = 0; onGround = true;
@@ -3820,10 +3845,10 @@
     for (let i = 0; i < motes.N; i++) { let y = motes.pos[i * 3 + 1] + motes.spd[i] * dt; if (y > 40) y = 5; motes.pos[i * 3 + 1] = y; motes.pos[i * 3] += Math.sin(t * 0.4 + i) * 0.006; }
     motes.pts.geometry.attributes.position.needsUpdate = true;
     // splash SFX on entering the water (FPS)
-    if (mode === 'fps') { const inW = (player.position.y <= WATER + 0.25) && (groundH < WATER + 0.2); if (inW && !inWaterPrev) sfxSplash(); inWaterPrev = inW; }
+    if (mode === 'fps') { const wl = waterLevelAt(player.position.x, player.position.z); const inW = (player.position.y <= wl + 0.25) && (groundH < wl + 0.2); if (inW && !inWaterPrev) sfxSplash(); inWaterPrev = inW; }
     // breath / drowning when the head goes under + underwater fog volume
     if (mode === 'fps') {
-      const depthU = Math.max(0, WATER - (player.position.y + EYE));
+      const depthU = Math.max(0, waterLevelAt(player.position.x, player.position.z) - (player.position.y + EYE));
       const under = depthU > 0.05;
       if (under) { air -= dt / 12; if (air <= 0) { respawn(); sfxSplash(); } } else if (air < 1) { air = Math.min(1, air + dt * 0.6); }
       if (_uw) _uw.style.opacity = Math.min(0.62, depthU * 0.14).toFixed(2);
