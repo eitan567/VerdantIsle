@@ -866,7 +866,7 @@
           walk: 'Walking (1).fbx', run: 'Running.fbx', jump: 'Jumping.fbx', idle: 'Happy Idle.fbx',
           // multiple punch + kick variations, picked at random per attack
           punch: 'Hook Punch.fbx', punch2: 'Mutant Swiping.fbx',
-          kick: 'Mma Kick.fbx', kick2: 'Inside Crescent Kick.fbx', kick3: 'Roundhouse Kick.fbx', kick4: 'Mma Kick (1).fbx'
+          kick: 'Mma Kick.fbx', kick2: 'Inside Crescent Kick.fbx', kick3: 'Roundhouse Kick.fbx'
         };
         loader.load('models/character/Dwarf Idle.fbx', fbx => {
           const bbox = new THREE.Box3().setFromObject(fbx);
@@ -2350,7 +2350,13 @@
       let playerHP = 100, kills = 0, swingT = 0, swingDur = 0.7, hurtFlash = 0, playerDmg = 1, keysHeld = 0, gold = 0, underAttack = false;
       let attackAnim = 'punch', attackKind = 'punch';
       const PUNCH_CLIPS = ['punch', 'punch2'];
-      const KICK_CLIPS = ['kick', 'kick2', 'kick3', 'kick4'];
+      const KICK_CLIPS = ['kick', 'kick2', 'kick3'];
+      // target attack durations (seconds) per timing table @60fps — each clip is time-scaled to fit
+      const ATTACK_DUR = {
+        punch: 0.50, punch2: 0.50,  // fast punch
+        kick: 0.72, kick2: 0.72,    // fast kick
+        kick3: 0.80                  // heavy kick (Roundhouse)
+      };
       // ---- FPS camera offset (tuned) + hidden debug panel (toggle via Settings) ----
       let _acX = 0, _acY = 1.9, _acZ = -0.3, _acP = 0;
       let _fpsTuneVisible = false;
@@ -3135,7 +3141,10 @@
         const pool = (attackKind === 'kick' ? KICK_CLIPS : PUNCH_CLIPS).filter(k => playerActions[k]);
         attackAnim = pool.length ? pool[(Math.random() * pool.length) | 0] : attackKind;
         const _atkAction = playerActions[attackAnim];
-        swingDur = swingT = _atkAction ? _atkAction.getClip().duration : 0.7;
+        // time-scale the clip so it plays within the target window from the timing table
+        const target = ATTACK_DUR[attackAnim] || (attackKind === 'kick' ? 0.52 : 0.30);
+        swingDur = swingT = target;
+        if (_atkAction) _atkAction.timeScale = _atkAction.getClip().duration / target;
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
         for (let i = enemies.length - 1; i >= 0; i--) {
           const e = enemies[i], dx = e.position.x - player.position.x, dz = e.position.z - player.position.z, d = Math.hypot(dx, dz) || 1;
@@ -3521,7 +3530,7 @@
           else if (hsp > 8.5 && playerActions.run) act = 'run';
           else if (hsp > 0.5 && playerActions.walk) act = 'walk';
           setPlayerAction(act, swingT > 0 ? 0.05 : 0.18);
-          playerMixer.update(swingT > 0 ? dt * 2 : dt);
+          playerMixer.update(dt);
         }
         // FPS first-person: collapse torso/head, inflate shoulders back so only arms+legs show.
         // Third-person: everything at scale 1. (Must run AFTER mixer.update, which sets bone transforms.)
@@ -3546,7 +3555,7 @@
           vm.rotation.z = vm.rotation.x = 0;
         } else {
           const k = Math.sin(Math.max(0, swingT) / swingDur * Math.PI);
-          swingT -= dt * 2;
+          swingT -= dt;
           if (attackKind === 'punch') {
             vmR.rotation.x = -0.5 - 2.0 * k; vmR.rotation.z = 0.15 * k;
             vmL.rotation.x = -0.5 + 0.4 * k; vmL.rotation.z = 0;
