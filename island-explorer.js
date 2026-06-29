@@ -2562,6 +2562,8 @@
   body.add(_camMarker);   // same position+yaw as player, so marker matches camera local offset
   // TEMP: CTRL-hold orbit-around-character (third-person inspection)
   let _oa = 0, _oe = 0.35;
+  // smoothed third-person camera follow angles (trail the player, then catch up — pro-style camera lag)
+  let camYaw = null, camPitch = 0;
   const _orbitTarget = new THREE.Vector3();
   (function () {
     const p = document.createElement('div');
@@ -2990,6 +2992,50 @@
   const terrainMatrixTmp = new THREE.Matrix4();
   const terrainQuatTmp = new THREE.Quaternion();
   const _animUp = new THREE.Vector3(0, 1, 0);
+
+  /* ---- Foot IK: plant each leg onto the terrain under it (Quaternius quadruped rig) ----
+     Each frame (after the mixer poses the skeleton) we swing the upper-leg bone so its foot
+     bone sits at the animated lift height ABOVE the real ground beneath it. This keeps the
+     walk/gallop cycle (lifted feet stay lifted) while stance feet conform to bumps/slopes. */
+  const LEG_BONE_SETS = [
+    ['FrontUpperLeg.L', 'FrontLowerLeg.L'],
+    ['FrontUpperLeg.R', 'FrontLowerLeg.R'],
+    ['BackUpperLeg.L', 'BackLeg.L'],
+    ['BackUpperLeg.R', 'BackLeg.R']
+  ];
+  function findLegBones(model) {
+    const legs = [];
+    for (const [hipN, footN] of LEG_BONE_SETS) {
+      const hip = model.getObjectByName(hipN), foot = model.getObjectByName(footN);
+      if (hip && foot) legs.push({ hip, foot });
+    }
+    return legs.length === 4 ? legs : null;
+  }
+  const _ikFoot = new THREE.Vector3(), _ikHip = new THREE.Vector3(), _ikCur = new THREE.Vector3(), _ikDes = new THREE.Vector3();
+  const _ikQ = new THREE.Quaternion(), _ikIdent = new THREE.Quaternion(), _ikBoneW = new THREE.Quaternion(), _ikParW = new THREE.Quaternion(), _ikNewW = new THREE.Quaternion();
+  function applyFootIK(animal) {
+    const legs = animal.legs; if (!legs) return;
+    const gY = animal.g.position.y;
+    for (let i = 0; i < legs.length; i++) {
+      const hip = legs[i].hip, foot = legs[i].foot;
+      foot.updateWorldMatrix(true, false);
+      _ikFoot.setFromMatrixPosition(foot.matrixWorld);   // animated foot world position
+      const lift = _ikFoot.y - gY;                        // foot height above the body's ground (from the clip)
+      const targetY = heightAt(_ikFoot.x, _ikFoot.z) + lift;
+      _ikHip.setFromMatrixPosition(hip.matrixWorld);
+      _ikCur.subVectors(_ikFoot, _ikHip);
+      _ikDes.set(_ikFoot.x - _ikHip.x, targetY - _ikHip.y, _ikFoot.z - _ikHip.z);
+      if (_ikCur.lengthSq() < 1e-6 || _ikDes.lengthSq() < 1e-6) continue;
+      _ikCur.normalize(); _ikDes.normalize();
+      _ikQ.setFromUnitVectors(_ikCur, _ikDes);
+      _ikIdent.identity(); _ikQ.copy(_ikIdent.slerp(_ikQ, 0.55));   // blend so it never snaps
+      hip.getWorldQuaternion(_ikBoneW);
+      hip.parent.getWorldQuaternion(_ikParW);
+      _ikNewW.multiplyQuaternions(_ikQ, _ikBoneW);
+      hip.quaternion.copy(_ikParW.invert().multiply(_ikNewW));
+      hip.updateWorldMatrix(true, false);
+    }
+  }
   function animalMotionEase(dt, sharpness) {
     return 1 - Math.exp(-Math.max(0, sharpness) * Math.max(0, dt));
   }
@@ -3052,6 +3098,8 @@
     // behind the legs. Use the stable walk cycle at a higher playback rate for
     // fleeing animals instead.
     gallop: [/^Walk$/i, /AnimalArmature\|Walk/i, /walk/i, /Gallop$/i],
+    // real gallop/run cycle — used for the rideable horse (wild animals keep the stable walk-fast above)
+    run: [/Gallop$/i, /gallop/i, /Canter/i, /^Run$/i, /run/i],
     jump: [/Jump_toIdle/i, /Gallop_Jump/i, /Idle/i]
   };
   const _fbxCache = {};
@@ -3066,9 +3114,7 @@
     if (n <= 0) return;
     const cached = _fbxCache[cfg.file];
     if (cached) { _spawnGroundInstances(cfg, n, cached); return; }
-    if (!THREE.FBXLoader) return;
-    new THREE.FBXLoader().load('models/animals/' + cfg.file, fbx => {
-      const clips = fbx.animations || [];
+    const _onAnimalLoaded = (fbx, clips) => {
       fbx.traverse(o => {
         if (!o.isMesh) return;
         o.castShadow = true;
@@ -3095,7 +3141,13 @@
       _fbxCache[cfg.file] = entry;
       const want = wcount(cfg.kind); // re-read in case it changed during load
       if (want > 0) _spawnGroundInstances(cfg, want, entry);
-    }, undefined, err => console.warn('Could not load ' + cfg.file, err));
+    };
+    const _animUrl = 'models/animals/' + cfg.file;
+    if (/\.gl(tf|b)$/i.test(cfg.file)) {
+      if (THREE.GLTFLoader) new THREE.GLTFLoader().load(_animUrl, g => _onAnimalLoaded(g.scene, g.animations || []), undefined, err => console.warn('Could not load ' + cfg.file, err));
+    } else if (THREE.FBXLoader) {
+      new THREE.FBXLoader().load(_animUrl, fbx => _onAnimalLoaded(fbx, fbx.animations || []), undefined, err => console.warn('Could not load ' + cfg.file, err));
+    }
   }
   function _spawnGroundInstances(cfg, n, entry) {
     const fbx = entry.fbx, clips = entry.clips, box = entry.box;
@@ -3116,15 +3168,17 @@
       const modelBaseY = -box.min.y * scale;
       model.scale.setScalar(scale);
       model.position.y = modelBaseY;
+      if (cfg.modelYaw) model.rotation.y = cfg.modelYaw;   // correct facing if the model's forward isn't +Z
       g.add(model);
       g.position.set(x, h, z);
       scene.add(g);
       const anim = makeFbxActions(model, clips, groundAnimalClipMap);
       Object.keys(anim.actions).forEach(k => { anim.actions[k].timeScale = 0.85 + rnd() * 0.25; });
+      const legs = findLegBones(model);   // null for rigs without the Quaternius leg bones (skips foot IK)
       const initialAng = rnd() * 6.28;
       const animal = {
         kind: cfg.kind,
-        g, model, modelBaseY, mixer: anim.mixer, actions: anim.actions, currentAction: '',
+        g, model, modelBaseY, legs, mixer: anim.mixer, actions: anim.actions, currentAction: '',
         sp: cfg.walkSpeed + rnd() * (cfg.walkJitter || 1.0),
         runSp: cfg.runSpeed + rnd() * (cfg.runJitter || 1.8),
         fleeDist: cfg.fleeDist || 22,
@@ -3149,7 +3203,7 @@
     }
   }
   const GROUND_CFGS = [
-    { file: 'Horse.fbx', kind: 'horse', targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 },
+    { file: 'Horse.gltf', kind: 'horse', targetSize: 5.4, walkSpeed: 2.4, walkJitter: 1.0, runSpeed: 8.6, runJitter: 1.9, fleeDist: 24 },
     { file: 'Deer.fbx', kind: 'deer', targetSize: 4.1, walkSpeed: 2.1, runSpeed: 7.8, fleeDist: 22 }
   ];
   function applyWildlife() {
@@ -3239,6 +3293,7 @@
       const animDt = Math.min(animal.animAcc, 0.25);
       animal.animAcc = 0;
       animal.mixer.update(animDt * rate);
+      applyFootIK(animal);   // plant feet on the terrain right after the fresh pose (no compounding)
     }
   }
   const animalThreatTmp = { found: false, dx: 0, dz: 0, dist: Infinity };
@@ -3701,6 +3756,7 @@
       const pcDist = 3;
       camera.position.set(0, 1.2 - pcDist * Math.sin(pitch), pcDist * Math.cos(pitch));
       camera.rotation.set(pitch, 0, 0);
+      camYaw = null;   // reset trailing cam so returning to third-person starts settled
       vy = 0; vel.set(0, 0, 0);
     }
 
@@ -3708,9 +3764,13 @@
     if (rideMode && controlledHorse) {
       const hrs = controlledHorse;
       const run = keys['ShiftLeft'] || keys['ShiftRight'];
-      let spd = 0;
-      if (keys['KeyW']) spd = run ? 16 : 8;
-      else if (keys['KeyS']) spd = -4;
+      // target speed from input, then EASE toward it → natural acceleration/deceleration (not robotic)
+      let targetSpd = 0;
+      if (keys['KeyW']) targetSpd = run ? 22 : 8;
+      else if (keys['KeyS']) targetSpd = -5;
+      hrs.rideSpd = hrs.rideSpd || 0;
+      hrs.rideSpd += (targetSpd - hrs.rideSpd) * (1 - Math.exp(-3.5 * dt));   // ramp up/down smoothly
+      const spd = Math.abs(hrs.rideSpd) < 0.05 ? 0 : hrs.rideSpd;
       if (keys['KeyA']) yaw += dt * 1.4;          // A/D turn (mouse also steers via yaw)
       if (keys['KeyD']) yaw -= dt * 1.4;
       const fwdX = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
@@ -3720,16 +3780,30 @@
       if (heightAt(nx, nz) > WATER + 0.3) { hrs.g.position.x = nx; hrs.g.position.z = nz; }   // stay on land
       hrs.ang = hrs.targetAng = yaw + Math.PI;    // animal forward is (sin,cos) → face player-forward
       orientGroundAnimal(hrs, hrs.ang, 0, 0.5, dt);
-      const moving = Math.abs(spd) > 0.1;
-      hrs.state = moving ? (run && spd > 0 ? 'gallop' : 'walk') : 'idle';
-      playAnimalAction(hrs, hrs.state);
-      hrs.model.position.y = hrs.modelBaseY;
-      updateAnimalMixerBudgeted(hrs, dt, 0, hrs.state === 'gallop' ? 1.4 : (hrs.state === 'walk' ? 1.0 : 0.85));
+      // gait chosen by ACTUAL (eased) speed; leg-cycle rate scales with speed so feet never slide
+      const aspd = Math.abs(spd);
+      const anim = aspd < 0.4 ? 'idle' : (aspd > 12 && hrs.actions.run ? 'run' : 'walk');
+      playAnimalAction(hrs, anim);
+      let bound = 0;
+      if (anim === 'run') { hrs.actions.run.timeScale = 1; bound = Math.abs(Math.sin(t * 5.4)) * 0.1; }
+      hrs.model.position.y = hrs.modelBaseY + bound;
+      const rate = anim === 'run' ? Math.max(0.6, aspd / 16) : anim === 'walk' ? Math.max(0.45, aspd / 8) : 0.85;
+      updateAnimalMixerBudgeted(hrs, dt, 0, rate);
       player.position.set(hrs.g.position.x, hrs.g.position.y, hrs.g.position.z);
-      const tp = Math.max(-0.15, Math.min(0.85, pitch));   // mouse Y tilts the chase cam
+      // smoothed chase cam — trails the horse's heading, then catches up (less laggy than on-foot)
+      if (camYaw === null) { camYaw = yaw; camPitch = pitch; }
+      camYaw = lerpAnimalAngle(camYaw, yaw, 1 - Math.exp(-5 * dt));
+      camPitch += (pitch - camPitch) * (1 - Math.exp(-12 * dt));
+      const tp = Math.max(-0.15, Math.min(0.85, camPitch));   // mouse Y tilts the chase cam
       const dist = 11, ty = 5.2;
-      camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
-      camera.rotation.set(tp, 0, 0);
+      const rel = camYaw - yaw;
+      camera.position.set(
+        dist * Math.sin(rel) * Math.cos(tp),
+        ty - dist * Math.sin(tp),
+        dist * Math.cos(rel) * Math.cos(tp)
+      );
+      player.updateMatrixWorld();
+      camera.lookAt(player.localToWorld(_orbitTarget.set(0, ty, 0)));
       vy = 0; vel.set(0, 0, 0);
     }
 
@@ -3796,11 +3870,23 @@
           player.updateMatrixWorld();
           camera.lookAt(player.localToWorld(_orbitTarget.set(0, ty, 0)));
         } else {
-          const tp = Math.max(-0.6, Math.min(1.0, pitch));
-          camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
-          camera.rotation.set(tp, 0, 0);
+          // smoothed follow: the camera angle trails the player's facing, then eases in to
+          // catch up — so a quick turn shows the character pivot before the camera swings behind.
+          if (camYaw === null) { camYaw = yaw; camPitch = pitch; }
+          camYaw = lerpAnimalAngle(camYaw, yaw, 1 - Math.exp(-7 * dt));     // lower factor = laggier
+          camPitch += (pitch - camPitch) * (1 - Math.exp(-12 * dt));        // pitch tracks a bit tighter
+          const tp = Math.max(-0.6, Math.min(1.0, camPitch));
+          const rel = camYaw - yaw;   // camera is a child of player(yaw); offset by the trailing amount
+          camera.position.set(
+            dist * Math.sin(rel) * Math.cos(tp),
+            ty - dist * Math.sin(tp),
+            dist * Math.cos(rel) * Math.cos(tp)
+          );
+          player.updateMatrixWorld();
+          camera.lookAt(player.localToWorld(_orbitTarget.set(0, ty, 0)));
         }
       } else {
+        camYaw = null;   // first-person: reset so re-entering third-person starts settled behind
         camera.position.set(_acX + Math.cos(bob * 0.5) * 0.04 * moveAmt, _acY + Math.sin(bob) * 0.07 * moveAmt, _acZ);
         camera.rotation.set(pitch + _acP, 0, 0);
       }
