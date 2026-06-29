@@ -2772,7 +2772,7 @@
   ];
   const wildlifeCounts = (() => {
     const d = {};
-    WILDLIFE_DEFS.forEach(w => { d[w.key] = { on: false, n: w.def }; });
+    WILDLIFE_DEFS.forEach(w => { d[w.key] = { on: true, n: w.def }; });   // wildlife on by default (parrots for F-fly, horses for H-ride)
     try {
       const s = JSON.parse(localStorage.getItem('vi_wildlife') || 'null');
       if (s) WILDLIFE_DEFS.forEach(w => { if (s[w.key]) d[w.key] = { on: !!s[w.key].on, n: Math.max(0, Math.min(200, s[w.key].n | 0)) }; });
