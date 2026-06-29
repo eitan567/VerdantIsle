@@ -1349,6 +1349,7 @@
       if (e.code === 'KeyC') toggleChat();
       if (e.code === 'KeyO') toggleSettings();
       if (e.code === 'KeyF' && mode === 'fps') toggleParrotMode();
+      if (e.code === 'KeyH' && mode === 'fps') toggleRideMode();
     }
   });
 
@@ -2512,6 +2513,8 @@
   let parrotMode = false, controlledParrot = null;
   const parrotSaved = { px: 0, py: 0, pz: 0, yaw: 0, pitch: 0, vy: 0 };
   const parrotVel = new THREE.Vector3();
+  let rideMode = false, controlledHorse = null;
+  const rideSaved = { px: 0, py: 0, pz: 0, yaw: 0, pitch: 0, vy: 0 };
   function respawn() { player.position.set(0, heightAt(0, 0) + EYE, 30); vel.set(0, 0, 0); vy = 0; air = 1; }
   // nearest distance to open water (for spatial wave volume)
   function waterProximity(px, pz) {
@@ -2865,7 +2868,32 @@
       parrots.push(parrot);
     }
   };
+  function toggleRideMode() {
+    if (rideMode) {
+      rideMode = false;
+      player.position.set(rideSaved.px, rideSaved.py, rideSaved.pz);
+      yaw = rideSaved.yaw; pitch = rideSaved.pitch; vy = rideSaved.vy;
+      vel.set(0, 0, 0);
+      controlledHorse = null;
+    } else {
+      if (parrotMode || underAttack) return;
+      let best = null, bestD2 = Infinity;
+      for (const s of groundAnimals) {
+        if (s.kind !== 'horse') continue;
+        const dx = s.g.position.x - player.position.x, dz = s.g.position.z - player.position.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; best = s; }
+      }
+      if (!best || bestD2 > 100) { toast('🐎 No horse nearby to ride'); return; }   // must be within ~10 units
+      rideSaved.px = player.position.x; rideSaved.py = player.position.y; rideSaved.pz = player.position.z;
+      rideSaved.yaw = yaw; rideSaved.pitch = pitch; rideSaved.vy = vy;
+      rideMode = true; controlledHorse = best;
+      vel.set(0, 0, 0); vy = 0;
+      toast('🐎 Riding — WASD/mouse to steer, H to dismount');
+    }
+  }
   function toggleParrotMode() {
+    if (rideMode) return;
     if (parrotMode) {
       parrotMode = false;
       player.position.set(parrotSaved.px, parrotSaved.py, parrotSaved.pz);
@@ -3255,6 +3283,7 @@
     }
     for (let i = 0; i < groundAnimals.length; i++) {
       const s = groundAnimals[i];
+      if (s === controlledHorse) { s.g.visible = true; continue; }   // ridden horse is driven by the ride block
       const fdx = s.g.position.x - focus.x, fdz = s.g.position.z - focus.z, fd2 = fdx * fdx + fdz * fdz;
       s.g.visible = fd2 < hideDist2;
       setAnimalShadowing(s, s.g.visible && fd2 < WILDLIFE_SHADOW2);
@@ -3404,15 +3433,16 @@
       const e = enemies[i], u = e.userData; u.t += dt; u.cd -= dt; u.dir -= dt;
       const dx = player.position.x - e.position.x, dz = player.position.z - e.position.z, dist = Math.hypot(dx, dz);
       if (dist < _nearestEnemyDist) _nearestEnemyDist = dist;
-      if (mode === 'fps' && !parrotMode && dist < 2.5) underAttack = true;
-      if (mode === 'fps' && !parrotMode && dist < 13) { u.ang = Math.atan2(dx, dz); } else if (u.dir <= 0) { u.ang += (Math.random() - 0.5) * 2.5; u.dir = 2 + Math.random() * 3; }
+      const mounted = parrotMode || rideMode;
+      if (mode === 'fps' && !mounted && dist < 2.5) underAttack = true;
+      if (mode === 'fps' && !mounted && dist < 13) { u.ang = Math.atan2(dx, dz); } else if (u.dir <= 0) { u.ang += (Math.random() - 0.5) * 2.5; u.dir = 2 + Math.random() * 3; }
       const sp = 2.4 * dt; const nx = e.position.x + Math.sin(u.ang) * sp, nz = e.position.z + Math.cos(u.ang) * sp;
       if (heightAt(nx, nz) > WATER) { e.position.x = nx; e.position.z = nz; } else { u.ang += Math.PI; }
       const lim = WORLD * 0.5 - 4; e.position.x = Math.max(-lim, Math.min(lim, e.position.x)); e.position.z = Math.max(-lim, Math.min(lim, e.position.z));
       e.position.y = Math.max(heightAt(e.position.x, e.position.z), WATER); e.rotation.y = u.ang;
       u.body.position.y = 0.45 + Math.abs(Math.sin(u.t * 5)) * 0.3; // hop
-      if (mode === 'fps' && !parrotMode && dist < 1.7 && u.cd <= 0) { hurtPlayer(11); u.cd = 1.0; }
-      if (mode === 'fps' && !parrotMode && dist < 1.05 && dist > 1e-4) { const k = (1.05 - dist) / dist; player.position.x += dx * k; player.position.z += dz * k; } // can't walk through a slime
+      if (mode === 'fps' && !mounted && dist < 1.7 && u.cd <= 0) { hurtPlayer(11); u.cd = 1.0; }
+      if (mode === 'fps' && !mounted && dist < 1.05 && dist > 1e-4) { const k = (1.05 - dist) / dist; player.position.x += dx * k; player.position.z += dz * k; } // can't walk through a slime
     }
   }
   normalizeShadowCastingMaterials(scene);
@@ -3674,7 +3704,36 @@
       vy = 0; vel.set(0, 0, 0);
     }
 
-    if (!parrotMode) {
+    /* ---- Horse riding mode (H key): steer with mouse + WASD, third-person chase cam ---- */
+    if (rideMode && controlledHorse) {
+      const hrs = controlledHorse;
+      const run = keys['ShiftLeft'] || keys['ShiftRight'];
+      let spd = 0;
+      if (keys['KeyW']) spd = run ? 16 : 8;
+      else if (keys['KeyS']) spd = -4;
+      if (keys['KeyA']) yaw += dt * 1.4;          // A/D turn (mouse also steers via yaw)
+      if (keys['KeyD']) yaw -= dt * 1.4;
+      const fwdX = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
+      const plim = WORLD * 0.5 - 4;
+      const nx = Math.max(-plim, Math.min(plim, hrs.g.position.x + fwdX * spd * dt));
+      const nz = Math.max(-plim, Math.min(plim, hrs.g.position.z + fwdZ * spd * dt));
+      if (heightAt(nx, nz) > WATER + 0.3) { hrs.g.position.x = nx; hrs.g.position.z = nz; }   // stay on land
+      hrs.ang = hrs.targetAng = yaw + Math.PI;    // animal forward is (sin,cos) → face player-forward
+      orientGroundAnimal(hrs, hrs.ang, 0, 0.5, dt);
+      const moving = Math.abs(spd) > 0.1;
+      hrs.state = moving ? (run && spd > 0 ? 'gallop' : 'walk') : 'idle';
+      playAnimalAction(hrs, hrs.state);
+      hrs.model.position.y = hrs.modelBaseY;
+      updateAnimalMixerBudgeted(hrs, dt, 0, hrs.state === 'gallop' ? 1.4 : (hrs.state === 'walk' ? 1.0 : 0.85));
+      player.position.set(hrs.g.position.x, hrs.g.position.y, hrs.g.position.z);
+      const tp = Math.max(-0.15, Math.min(0.85, pitch));   // mouse Y tilts the chase cam
+      const dist = 11, ty = 5.2;
+      camera.position.set(0, ty - dist * Math.sin(tp), dist * Math.cos(tp));
+      camera.rotation.set(tp, 0, 0);
+      vy = 0; vel.set(0, 0, 0);
+    }
+
+    if (!parrotMode && !rideMode) {
       // input -> horizontal velocity (camera-relative on yaw plane)
       const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
       const speed = (sprint ? 13 : 7);
@@ -3698,7 +3757,7 @@
     // terrain height at current x,z (used for gravity and water checks)
     const groundH = heightAt(player.position.x, player.position.z);
 
-    if (!parrotMode) {
+    if (!parrotMode && !rideMode) {
       // gravity + ground (+ swimming when you wade out into deep water)
       vy -= 24 * dt; player.position.y += vy * dt;
       const _hf = houseFloorAt(player.position.x, player.position.z);   // stand on the interior floor when inside a house
@@ -3723,8 +3782,8 @@
     if (hsp > 0.4 && onGround) bob += dt * (7 + hsp * 1.1);
     // footstep SFX cadence
     if (hsp > 0.4 && onGround) { stepAcc += dt * (1.3 + hsp * 0.16); if (stepAcc >= 1) { stepAcc = 0; sfxStep(); } } else stepAcc = 0.75;
-    const third = !parrotMode && mode === 'fps' && view === 'third';
-    if (!parrotMode) {
+    const third = !parrotMode && !rideMode && mode === 'fps' && view === 'third';
+    if (!parrotMode && !rideMode) {
       if (third) {   // orbit camera behind/above the visible character
         const dist = 6.4, ty = 2.6;
         if (keys['ControlLeft'] || keys['ControlRight']) {
@@ -3773,7 +3832,7 @@
       // attack swing on the right arm (visible in third-person)
       if (swingT > 0) { const k = Math.sin(Math.min(1, swingT / 0.28) * Math.PI); armRj.sh.rotation.x = -1.9 * k; armRj.sh.rotation.z = -0.3 * k; armRj.elbow.rotation.x = -1.1 * k; } else { armRj.sh.rotation.z = 0; }
       head.visible = third;
-    } else if (playerMixer && !parrotMode) {
+    } else if (playerMixer && !parrotMode && !rideMode) {
       // ---- animated dwarf: pick a clip from the movement state ----
       let act = 'idle';
       if (swingT > 0 && playerActions[attackAnim]) act = attackAnim;
@@ -3785,9 +3844,9 @@
     }
     // FPS first-person: collapse torso/head, inflate shoulders back so only arms+legs show.
     // Third-person: everything at scale 1. (Must run AFTER mixer.update, which sets bone transforms.)
-    body.visible = !parrotMode;
+    body.visible = !parrotMode && !rideMode;
     if (usingDwarf && _fpsCollapse.length) {
-      const fps = !third && !parrotMode;
+      const fps = !third && !parrotMode && !rideMode;
       for (const b of _fpsCollapse) b.scale.setScalar(fps ? FPS_EPS : 1);
       for (const b of _fpsRestore) b.scale.setScalar(fps ? 1 / FPS_EPS : 1);
     }
@@ -3910,7 +3969,7 @@
     // dynamic combat music: full when an enemy is close, fades in as danger nears
     {
       const d = _nearestEnemyDist; let ci = 0;
-      if (mode === 'fps' && !parrotMode) ci = d < 6 ? 1 : (d < 18 ? (18 - d) / 12 : 0);
+      if (mode === 'fps' && !parrotMode && !rideMode) ci = d < 6 ? 1 : (d < 18 ? (18 - d) / 12 : 0);
       setCombatIntensity(ci);
     }
     updateWildlife(dt, t);   // birds circle overhead; ground animals roam and flee enemies
